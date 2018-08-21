@@ -79,6 +79,9 @@ func (l *linux) convertToModel() (models.ScanResult, error) {
 		scoredCves = append(scoredCves, cve)
 	}
 
+	sort.Sort(scoredCves)
+	sort.Sort(unscoredCves)
+
 	return models.ScanResult{
 		ServerName:  l.ServerInfo.ServerName,
 		Family:      l.Family,

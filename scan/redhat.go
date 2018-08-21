@@ -172,6 +172,7 @@ func (o *redhat) installYumChangelog() error {
 		}
 		o.log.Infof("Installed: %s.", packName)
 	}
+	o.log.Infof("Sudo... Pass")
 	return nil
 }
 
@@ -213,7 +214,17 @@ func (o *redhat) checkRequiredPackagesInstalled() error {
 			o.log.Errorf(msg)
 			return fmt.Errorf(msg)
 		}
+	default:
+		return fmt.Errorf("Not implemented yet: %s", o.Distro)
 	}
+
+	cmd := "rpm -q " + packName
+	if r := o.exec(cmd, noSudo); !r.isSuccess() {
+		msg := fmt.Sprintf("%s is not installed", packName)
+		o.log.Errorf(msg)
+		return fmt.Errorf(msg)
+	}
+	o.log.Infof("Dependencies... Pass")
 	return nil
 }
 

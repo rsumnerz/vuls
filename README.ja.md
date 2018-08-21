@@ -49,20 +49,23 @@ Vulsは上に挙げた手動運用での課題を解決するツールであり�
     - CIDRを指定してサーバを自動検出、設定ファイルのテンプレートを生成
 - EmailやSlackで通知可能（日本語でのレポートも可能）
 - 付属するTerminal-Based User Interfaceビューアでは、Vim風キーバインドでスキャン結果を参照可能
+reeBSDは今のところRoot権限なしでスキャン可能
 
 ----
 
-詳細は[README in English](https://github.com/future-architect/vuls/blob/master/README.md) を参照
+# Usage: Scan
 
-# レポートの日本語化
-
-- JVNから日本語の脆弱性情報を取得
-    ```
-    $ go-cve-dictionary fetchjvn -help
-    fetchjvn:
-            fetchjvn [-dump-path=$PWD/cve] [-dpath=$PWD/vuls.sqlite3] [-week] [-month] [-entire]
-
-      -dbpath string
+```
+$ vuls scan -help
+scan:
+        scan
+                [-config=/path/to/config.toml]
+                [-results-dir=/path/to/results]
+                [-log-dir=/path/to/log]
+                [-cachedb-path=/path/to/cache.db]
+                [-ssh-external]
+                [-containers-only]
+            -dbpath string
             /path/to/sqlite3/DBfile (default "$PWD/cve.sqlite3")
       -debug
             debug mode
@@ -76,6 +79,85 @@ Vulsは上に挙げた手動運用での課題を解決するツールであり�
             Fetch data in the last month (default: false)
       -week
             Fetch data in the last week. (default: false)
+>>>>>>>+master
+ug mode
+  -http-proxy string
+        http://proxy-url:port (default: empty)
+  -log-dir string
+        /path/to/log (default "/var/log/vuls")
+  -pipe
+        Use stdin via PIPE
+  -results-dir string
+        /path/to/results
+  -skip-broken
+        [For CentOS] yum update changelog with --skip-broken option
+  -ssh-external
+        Use external ssh command. Default: Use the Go native implementation
+```
+
+## -ssh-external option
+
+Vulsは２種類のSSH接続方法をサポートしている。
+
+デフォルトでは、Goのネイティブ実装 (crypto/ssh) を使ってスキャンする。
+これは、SSHコマンドがインストールされていない環境でも動作する（Windowsなど）  
+
+外部SSHコマンドを使ってスキャンするためには、`-ssh-external`を指定する。
+SSH Configが使えるので、ProxyCommandを使った多段SSHなどが可能。  
+CentOSでは、スキャン対象サーバの/etc/sudoersに以下を追加する必要がある(user: vuls)
+```
+Defaults:vuls !requiretty
+```
+
+## -ask-key-password option
+
+| SSH key password |  -ask-key-password | |
+|:-----------------|:-------------------|:----|
+| empty password   |                 -  | |
+| with password    |           required | or use ssh-agent |
+
+## Example: Scan all servers defined in config file
+```
+$ vuls scan -ask-key-password
+```
+この例では、
+- SSH公開鍵認証（秘密鍵パスフレーズ）を指定
+- configに定義された全サーバをスキャン
+
+## Example: Scan specific servers
+```
+$ vuls scan server1 server2
+```
+この例では、
+- SSH公開鍵認証（秘密鍵パスフレーズなし）
+- ノーパスワードでsudoが実行可能
+- configで定義されているサーバの中の、server1, server2のみスキャン
+
+## Example: Scan via shell instead of SSH.
+
+ローカルホストのスキャンする場合、SSHではなく直接コマンドの発行が可能。  
+config.tomlのhostに`localhost または 127.0.0.1`かつ、portに`local`を設定する必要がある。  
+For more details, see [Architecture section](https://github.com/future-architect/vuls#architecture)
+
+- config.toml
+  ```
+  [servers]
+
+  [servers.localhost]
+  host         = "localhost" # or "127.0.0.1"
+  port         = "local"
+  ```
+
+### cronで動かす場合
+
+RHEL/CentOSの場合、スキャン対象サーバの/etc/sudoersに以下を追加する必要がある。(user: vuls)
+```
+Defaults:vuls !requiretty
+```
+
+## Example: Scan containers (Docker/LXD)
+
+>>>>>>> 688cfd6
 
     ```
 

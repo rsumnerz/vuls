@@ -70,7 +70,7 @@ This can be done in the following steps.
 1. Deploy go-cve-dictionary
 1. Deploy Vuls
 1. Configuration
-1. Prepare
+1. Check config.toml and settings on the server before scanning
 1. Scan
 1. TUI(Terminal-Based User Interface)
 
@@ -186,7 +186,7 @@ keyPath     = "/home/ec2-user/.ssh/id_rsa"
 ## Step7. Setting up target servers for vuls  
 
 ```
-$ vuls prepare
+$ vuls configtest
 ```
 
 ## Step8. Start Scanning
@@ -421,11 +421,7 @@ You can customize your configuration using this template.
     - SSH public key authentication (with password, empty password)
     - Password authentication
 
-----
-
-# Usage: Prepare
-
-Prepare subcommand installs required packages on each server.
+In order to scan, the following dependencies are required, so you need to install them manually or with tools such as Ansible.
 
 | Distribution|            Release | Requirements |
 |:------------|-------------------:|:-------------|
@@ -436,7 +432,22 @@ Prepare subcommand installs required packages on each server.
 | Amazon      |                All | -            |
 | RHEL        |         4, 5, 6, 7 | -            |
 
+## Check /etc/sudoers 
 
+The configtest subcommand checks sudo settings on target servers whether Vuls is able to SUDO with nopassword via SSH.  
+
+Example of /etc/sudoers on target servers
+
+- CentOS
+```
+vuls ALL=(ALL) NOPASSWD:/usr/bin/yum --changelog --assumeno update *
+Defaults:vuls env_keep="http_proxy https_proxy HTTP_PROXY HTTPS_PROXY"
+```
+
+- RHEL 5 
+```
+vuls ALL=(ALL) NOPASSWD:/usr/bin/yum --color=never repolist, /usr/bin/yum --color=never list-security --security, /usr/bin/yum --color=never check-update, /usr/bin/yum --color=never info-security
+Defaults:vuls env_keep="http_proxy https_proxy HTTP_PROXY HTTPS_PROXY"
 ```
 $ vuls prepare -help
 prepare:

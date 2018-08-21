@@ -96,6 +96,13 @@ func (p *ConfigtestCmd) SetFlags(f *flag.FlagSet) {
 		"Ask ssh privatekey password before scanning",
 	)
 
+	f.StringVar(
+		&p.httpProxy,
+		"http-proxy",
+		"",
+		"http://proxy-url:port (default: empty)",
+	)
+
 	f.BoolVar(
 		&p.fast,
 		"fast",

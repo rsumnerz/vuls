@@ -18,16 +18,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package config
 
 // Load loads configuration
-func Load(path string) error {
-
-	//TODO if path's suffix .toml
+func Load(path, keyPass string) error {
 	var loader Loader
 	loader = TOMLLoader{}
-
-	return loader.Load(path)
+	return loader.Load(path, keyPass)
 }
 
 // Loader is interface of concrete loader
 type Loader interface {
-	Load(string) error
+	Load(string, string) error
 }

@@ -24,11 +24,11 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/cenkalti/backoff"
 	"github.com/future-architect/vuls/config"
 	"github.com/future-architect/vuls/models"
 	"github.com/parnurzeal/gorequest"
+	log "github.com/sirupsen/logrus"
 )
 
 type field struct {
@@ -45,6 +45,7 @@ type attachment struct {
 	Color     string   `json:"color"`
 	Fields    []*field `json:"fields"`
 	MrkdwnIn  []string `json:"mrkdwn_in"`
+	Footer    string   `json:"footer"`
 }
 type message struct {
 	Text        string        `json:"text"`
@@ -57,100 +58,169 @@ type message struct {
 // SlackWriter send report to slack
 type SlackWriter struct{}
 
-func (w SlackWriter) Write(scanResults []models.ScanResult) error {
+func (w SlackWriter) Write(rs ...models.ScanResult) error {
 	conf := config.Conf.Slack
-	for _, s := range scanResults {
+	channel := conf.Channel
 
-		channel := conf.Channel
+	for _, r := range rs {
 		if channel == "${servername}" {
-			channel = fmt.Sprintf("#%s", s.ServerName)
+			channel = fmt.Sprintf("#%s", r.ServerName)
 		}
 
-		msg := message{
-			Text:        msgText(s),
-			Username:    conf.AuthUser,
-			IconEmoji:   conf.IconEmoji,
-			Channel:     channel,
-			Attachments: toSlackAttachments(s),
-		}
-
-		bytes, _ := json.Marshal(msg)
-		jsonBody := string(bytes)
-		f := func() (err error) {
-			resp, body, errs := gorequest.New().Proxy(config.Conf.HTTPProxy).Post(conf.HookURL).
-				Send(string(jsonBody)).End()
-			if resp.StatusCode != 200 {
-				log.Errorf("Resonse body: %s", body)
-				if 0 < len(errs) {
-					return errs[0]
-				}
+		if 0 < len(r.Errors) {
+			serverInfo := fmt.Sprintf("*%s*", r.ServerInfo())
+			notifyUsers := getNotifyUsers(config.Conf.Slack.NotifyUsers)
+			txt := fmt.Sprintf("%s\n%s\nError: %s",
+				notifyUsers, serverInfo, r.Errors)
+			msg := message{
+				Text:      txt,
+				Username:  conf.AuthUser,
+				IconEmoji: conf.IconEmoji,
+				Channel:   channel,
 			}
-			return nil
+			if err := send(msg); err != nil {
+				return err
+			}
+			continue
 		}
-		notify := func(err error, t time.Duration) {
-			log.Warn("Retrying in ", t)
+
+		// A maximum of 100 attachments are allowed on a message.
+		// Split into chunks with 100 elements
+		// https://api.slack.com/methods/chat.postMessage
+		maxAttachments := 100
+		m := map[int][]*attachment{}
+		for i, a := range toSlackAttachments(r) {
+			m[i/maxAttachments] = append(m[i/maxAttachments], a)
 		}
-		if err := backoff.RetryNotify(f, backoff.NewExponentialBackOff(), notify); err != nil {
-			return fmt.Errorf("HTTP Error: %s", err)
+		chunkKeys := []int{}
+		for k := range m {
+			chunkKeys = append(chunkKeys, k)
+		}
+		sort.Ints(chunkKeys)
+
+		for i, k := range chunkKeys {
+			txt := ""
+			if i == 0 {
+				txt = msgText(r)
+			}
+			msg := message{
+				Text:        txt,
+				Username:    conf.AuthUser,
+				IconEmoji:   conf.IconEmoji,
+				Channel:     channel,
+				Attachments: m[k],
+			}
+			if err := send(msg); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func msgText(r models.ScanResult) string {
+func send(msg message) error {
+	conf := config.Conf.Slack
+	count, retryMax := 0, 10
 
-	notifyUsers := ""
-	if 0 < len(r.KnownCves) || 0 < len(r.UnknownCves) {
-		notifyUsers = getNotifyUsers(config.Conf.Slack.NotifyUsers)
+	bytes, _ := json.Marshal(msg)
+	jsonBody := string(bytes)
+
+	f := func() (err error) {
+		resp, body, errs := gorequest.New().Proxy(config.Conf.HTTPProxy).Post(conf.HookURL).Send(string(jsonBody)).End()
+		if 0 < len(errs) || resp == nil || resp.StatusCode != 200 {
+			count++
+			if count == retryMax {
+				return nil
+			}
+			return fmt.Errorf(
+				"HTTP POST error: %v, url: %s, resp: %v, body: %s",
+				errs, conf.HookURL, resp, body)
+		}
+		return nil
 	}
-
-	hostinfo := fmt.Sprintf(
-		"*%s* (%s %s)",
-		r.ServerName,
-		r.Family,
-		r.Release,
-	)
-	return fmt.Sprintf("%s\n%s\n>%s", notifyUsers, hostinfo, r.CveSummary())
+	notify := func(err error, t time.Duration) {
+		log.Warnf("Error %s", err)
+		log.Warn("Retrying in ", t)
+	}
+	boff := backoff.NewExponentialBackOff()
+	if err := backoff.RetryNotify(f, boff, notify); err != nil {
+		return fmt.Errorf("HTTP error: %s", err)
+	}
+	if count == retryMax {
+		return fmt.Errorf("Retry count exceeded")
+	}
+	return nil
 }
 
-func toSlackAttachments(scanResult models.ScanResult) (attaches []*attachment) {
+func msgText(r models.ScanResult) string {
+	notifyUsers := ""
+	if 0 < len(r.ScannedCves) {
+		notifyUsers = getNotifyUsers(config.Conf.Slack.NotifyUsers)
+	}
+	serverInfo := fmt.Sprintf("*%s*", r.ServerInfo())
+	return fmt.Sprintf("%s\n%s\n>%s",
+		notifyUsers,
+		serverInfo,
+		r.ScannedCves.FormatCveSummary())
+}
 
-	scanResult.KnownCves = append(scanResult.KnownCves, scanResult.UnknownCves...)
-	for _, cveInfo := range scanResult.KnownCves {
-		cveID := cveInfo.CveDetail.CveID
+func toSlackAttachments(r models.ScanResult) (attaches []*attachment) {
+	var vinfos []models.VulnInfo
+	if config.Conf.IgnoreUnscoredCves {
+		vinfos = r.ScannedCves.FindScoredVulns().ToSortedSlice()
+	} else {
+		vinfos = r.ScannedCves.ToSortedSlice()
+	}
 
-		curentPackages := []string{}
-		for _, p := range cveInfo.Packages {
-			curentPackages = append(curentPackages, p.ToStringCurrentVersion())
+	for _, vinfo := range vinfos {
+		curent := []string{}
+		for _, affected := range vinfo.AffectedPackages {
+			if p, ok := r.Packages[affected.Name]; ok {
+				curent = append(curent,
+					fmt.Sprintf("%s-%s", p.Name, p.FormatVer()))
+			} else {
+				curent = append(curent, affected.Name)
+			}
 		}
-		for _, cpename := range cveInfo.CpeNames {
-			curentPackages = append(curentPackages, cpename.Name)
+		for _, n := range vinfo.CpeNames {
+			curent = append(curent, n)
 		}
 
-		newPackages := []string{}
-		for _, p := range cveInfo.Packages {
-			newPackages = append(newPackages, p.ToStringNewVersion())
+		new := []string{}
+		for _, affected := range vinfo.AffectedPackages {
+			if p, ok := r.Packages[affected.Name]; ok {
+				if affected.NotFixedYet {
+					new = append(new, "Not Fixed Yet")
+				} else {
+					new = append(new, p.FormatNewVer())
+				}
+			} else {
+				new = append(new, "?")
+			}
+		}
+		for range vinfo.CpeNames {
+			new = append(new, "?")
 		}
 
 		a := attachment{
-			Title:     cveID,
-			TitleLink: fmt.Sprintf("%s?vulnId=%s", nvdBaseURL, cveID),
-			Text:      attachmentText(cveInfo, scanResult.Family),
+			Title:     vinfo.CveID,
+			TitleLink: "https://nvd.nist.gov/vuln/detail/" + vinfo.CveID,
+			Text:      attachmentText(vinfo, r.Family),
 			MrkdwnIn:  []string{"text", "pretext"},
 			Fields: []*field{
 				{
-					//  Title: "Current Package/CPE",
+					// Title: "Current Package/CPE",
 					Title: "Installed",
-					Value: strings.Join(curentPackages, "\n"),
+					Value: strings.Join(curent, "\n"),
 					Short: true,
 				},
 				{
 					Title: "Candidate",
-					Value: strings.Join(newPackages, "\n"),
+					Value: strings.Join(new, "\n"),
 					Short: true,
 				},
 			},
-			Color: color(cveInfo.CveDetail.CvssScore(config.Conf.Lang)),
+			Color: color(vinfo.MaxCvssScore().Value.Score),
 		}
 		attaches = append(attaches, &a)
 	}
@@ -171,57 +241,72 @@ func color(cvssScore float64) string {
 	}
 }
 
-func attachmentText(cveInfo models.CveInfo, osFamily string) string {
-	linkText := links(cveInfo, osFamily)
-	switch {
-	case config.Conf.Lang == "ja" &&
-		0 < cveInfo.CveDetail.Jvn.CvssScore():
+func attachmentText(vinfo models.VulnInfo, osFamily string) string {
+	maxCvss := vinfo.MaxCvssScore()
+	vectors := []string{}
+	for _, cvss := range vinfo.Cvss2Scores() {
+		calcURL := ""
+		switch cvss.Value.Type {
+		case models.CVSS2:
+			calcURL = fmt.Sprintf(
+				"https://nvd.nist.gov/vuln-metrics/cvss/v2-calculator?name=%s",
+				vinfo.CveID)
+		case models.CVSS3:
+			calcURL = fmt.Sprintf(
+				"https://nvd.nist.gov/vuln-metrics/cvss/v3-calculator?name=%s",
+				vinfo.CveID)
+		}
 
-		jvn := cveInfo.CveDetail.Jvn
-		return fmt.Sprintf("*%4.1f (%s)* <%s|%s>\n%s\n%s\n*Confidence:* %v",
-			cveInfo.CveDetail.CvssScore(config.Conf.Lang),
-			jvn.Severity,
-			fmt.Sprintf(cvssV2CalcURLTemplate, cveInfo.CveDetail.CveID, jvn.Vector),
-			jvn.Vector,
-			jvn.Title,
-			linkText,
-			cveInfo.VulnInfo.Confidence,
-		)
-	case 0 < cveInfo.CveDetail.CvssScore("en"):
-		nvd := cveInfo.CveDetail.Nvd
-		return fmt.Sprintf("*%4.1f (%s)* <%s|%s>\n%s\n%s\n*Confidence:* %v",
-			cveInfo.CveDetail.CvssScore(config.Conf.Lang),
-			nvd.Severity(),
-			fmt.Sprintf(cvssV2CalcURLTemplate, cveInfo.CveDetail.CveID, nvd.CvssVector()),
-			nvd.CvssVector(),
-			nvd.Summary,
-			linkText,
-			cveInfo.VulnInfo.Confidence,
-		)
-	default:
-		nvd := cveInfo.CveDetail.Nvd
-		return fmt.Sprintf("?\n%s\n%s", nvd.Summary, linkText)
+		if cont, ok := vinfo.CveContents[cvss.Type]; ok {
+			v := fmt.Sprintf("<%s|%s> (<%s|%s>)",
+				calcURL,
+				cvss.Value.Format(),
+				cont.SourceLink,
+				cvss.Type)
+			vectors = append(vectors, v)
+
+		} else {
+			if 0 < len(vinfo.DistroAdvisories) {
+				links := []string{}
+				for k, v := range vinfo.VendorLinks(osFamily) {
+					links = append(links, fmt.Sprintf("<%s|%s>",
+						v, k))
+				}
+
+				v := fmt.Sprintf("<%s|%s> (%s)",
+					calcURL,
+					cvss.Value.Format(),
+					strings.Join(links, ", "))
+				vectors = append(vectors, v)
+			}
+		}
 	}
+
+	severity := strings.ToUpper(maxCvss.Value.Severity)
+	if severity == "" {
+		severity = "?"
+	}
+
+	return fmt.Sprintf("*%4.1f (%s)* %s\n%s\n```%s```",
+		maxCvss.Value.Score,
+		severity,
+		cweIDs(vinfo, osFamily),
+		strings.Join(vectors, "\n"),
+		vinfo.Summaries(config.Conf.Lang, osFamily)[0].Value,
+	)
 }
 
-func links(cveInfo models.CveInfo, osFamily string) string {
+func cweIDs(vinfo models.VulnInfo, osFamily string) string {
 	links := []string{}
-	cveID := cveInfo.CveDetail.CveID
-	if config.Conf.Lang == "ja" && 0 < len(cveInfo.CveDetail.Jvn.Link()) {
-		jvn := fmt.Sprintf("<%s|JVN>", cveInfo.CveDetail.Jvn.Link())
-		links = append(links, jvn)
+	for _, cwe := range vinfo.CveContents.CweIDs(osFamily) {
+		if config.Conf.Lang == "ja" {
+			links = append(links, fmt.Sprintf("<%s|%s>",
+				cweJvnURL(cwe.Value), cwe.Value))
+		} else {
+			links = append(links, fmt.Sprintf("<%s|%s>",
+				cweURL(cwe.Value), cwe.Value))
+		}
 	}
-	links = append(links, fmt.Sprintf("<%s|CVEDetails>",
-		fmt.Sprintf("%s/%s", cveDetailsBaseURL, cveID)))
-	links = append(links, fmt.Sprintf("<%s|MITRE>",
-		fmt.Sprintf("%s%s", mitreBaseURL, cveID)))
-
-	dlinks := distroLinks(cveInfo, osFamily)
-	for _, link := range dlinks {
-		links = append(links,
-			fmt.Sprintf("<%s|%s>", link.url, link.title))
-	}
-
 	return strings.Join(links, " / ")
 }
 

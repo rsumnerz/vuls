@@ -3,15 +3,116 @@
 
 [![Slack](https://img.shields.io/badge/slack-join-blue.svg)](http://goo.gl/forms/xm5KFo35tu)
 
-Vulnerability scanner for Linux, agentless, written in golang.
+![Vuls-logo](img/vuls_logo.png)  
+
+Vulnerability scanner for Linux/FreeBSD, agentless, written in golang.
 
 [README in English](https://github.com/future-architect/vuls/blob/master/README.md)  
-Slackチームは[こちらから](http://goo.gl/forms/xm5KFo35tu)参加できます。(日本語でオッケーです)
+Slackチームは[こちらから](http://goo.gl/forms/xm5KFo35tu)参加できます。(日本語でオッケーです)  
+Twitter:  日本語: [@vuls_ja](https://twitter.com/vuls_ja), 英語: [@vuls_en](https://twitter.com/vuls_en)
+
+![Vuls-Abstract](img/vuls-abstract.png)
 
 [![asciicast](https://asciinema.org/a/bazozlxrw1wtxfu9yojyihick.png)](https://asciinema.org/a/bazozlxrw1wtxfu9yojyihick)
 
 ![Vuls-slack](img/vuls-slack-ja.png)
 
+----
+
+# TOC
+
+Table of Contents
+=================
+
+   * [Vuls: VULnerability Scanner](#vuls-vulnerability-scanner)
+   * [TOC](#toc)
+   * [Abstract](#abstract)
+   * [Main Features](#main-features)
+   * [What Vuls Doesn't Do](#what-vuls-doesnt-do)
+   * [Setup Vuls](#setup-vuls)
+   * [Tutorial](#tutorial)
+   * [Tutorial: Local Scan Mode](#tutorial-local-scan-mode)
+      * [Step1. Launch CentOS7](#step1-launch-centos7)
+      * [Step2. Install requirements](#step2-install-requirements)
+      * [Step3. Deploy go-cve-dictionary](#step3-deploy-go-cve-dictionary)
+      * [Step4. Deploy goval-dictionary](#step4-deploy-goval-dictionary)
+      * [Step5. Deploy Vuls](#step5-deploy-vuls)
+      * [Step6. Config](#step6-config)
+      * [Step7. Check config.toml and settings on the server before scanning](#step7-check-configtoml-and-settings-on-the-server-before-scanning)
+      * [Step8. Start Scanning](#step8-start-scanning)
+      * [Step9. Reporting](#step9-reporting)
+      * [Step10. TUI](#step10-tui)
+      * [Step11. Web UI](#step11-web-ui)
+   * [Tutorial: Remote Scan Mode](#tutorial-remote-scan-mode)
+      * [Step1. Launch new Ubuntu Linux (the server to be sacnned)](#step1-launch-new-ubuntu-linux-the-server-to-be-sacnned)
+      * [Step2. Enable to SSH from localhost](#step2-enable-to-ssh-from-localhost)
+      * [Step3. config.tomlの設定](#step3-configtomlの設定)
+      * [Step4. Check config.toml and settings on the server before scanning](#step4-check-configtoml-and-settings-on-the-server-before-scanning)
+      * [Step5. Start Scanning](#step5-start-scanning)
+      * [Step6. Reporting](#step6-reporting)
+   * [Architecture](#architecture)
+      * [A. Scan via SSH Mode (Remote Scan Mode)](#a-scan-via-ssh-mode-remote-scan-mode)
+      * [B. Scan without SSH (Local Scan Mode)](#b-scan-without-ssh-local-scan-mode)
+      * [Fast Scan and Deep Scan](#fast-scan-and-deep-scan)
+         * [Fast Scan](#fast-scan)
+         * [Deep Scan](#deep-scan)
+   * [Use Cases](#use-cases)
+      * [Scan all servers](#scan-all-servers)
+      * [Scan a single server](#scan-a-single-server)
+   * [Support OS](#support-os)
+   * [Usage: Automatic Server Discovery](#usage-automatic-server-discovery)
+      * [Example](#example)
+   * [Configuration](#configuration)
+   * [Usage: Configtest](#usage-configtest)
+      * [Fast Scan Mode](#fast-scan-mode)
+      * [Deep Scan Mode](#deep-scan-mode)
+         * [Dependencies and /etc/sudoers on Target Servers](#dependencies-and-etcsudoers-on-target-servers)
+   * [Usage: Scan](#usage-scan)
+      * [-deep option](#-deep-option)
+      * [-ssh-native-insecure option](#-ssh-native-insecure-option)
+      * [-ask-key-password option](#-ask-key-password-option)
+      * [Example: Scan all servers defined in config file](#example-scan-all-servers-defined-in-config-file)
+      * [Example: Scan specific servers](#example-scan-specific-servers)
+      * [Example: Scan via shell instead of SSH.](#example-scan-via-shell-instead-of-ssh)
+         * [cronで動かす場合](#cronで動かす場合)
+      * [Example: Scan containers (Docker/LXD)](#example-scan-containers-dockerlxd)
+         * [Docker](#docker)
+         * [LXDコンテナをスキャンする場合](#lxdコンテナをスキャンする場合)
+   * [Usage: Report](#usage-report)
+      * [How to read a report](#how-to-read-a-report)
+         * [Example](#example-1)
+         * [Summary part](#summary-part)
+         * [Detailed Part](#detailed-part)
+      * [Example: Send scan results to Slack](#example-send-scan-results-to-slack)
+      * [Example: Put results in S3 bucket](#example-put-results-in-s3-bucket)
+      * [Example: Put results in Azure Blob storage](#example-put-results-in-azure-blob-storage)
+      * [Example: IgnoreCves](#example-ignorecves)
+      * [Example: Add optional key-value pairs to JSON](#example-add-optional-key-value-pairs-to-json)
+      * [Example: Use MySQL as a DB storage back-end](#example-use-mysql-as-a-db-storage-back-end)
+      * [Example: Use PostgreSQL as a DB storage back-end](#example-use-postgresql-as-a-db-storage-back-end)
+      * [Example: Use Redis as a DB storage back-end](#example-use-redis-as-a-db-storage-back-end)
+   * [Usage: Scan vulnerability of non-OS package](#usage-scan-vulnerability-of-non-os-package)
+   * [Usage: Integrate with OWASP Dependency Check to Automatic update when the libraries are updated (Experimental)](#usage-integrate-with-owasp-dependency-check-to-automatic-update-when-the-libraries-are-updated-experimental)
+   * [Usage: TUI](#usage-tui)
+      * [Display the latest scan results](#display-the-latest-scan-results)
+      * [Display the previous scan results](#display-the-previous-scan-results)
+   * [Display the previous scan results using peco](#display-the-previous-scan-results-using-peco)
+   * [Usage: go-cve-dictionary on different server](#usage-go-cve-dictionary-on-different-server)
+   * [Usage: Update NVD Data](#usage-update-nvd-data)
+   * [Usage: goval-dictionary on different server](#usage-goval-dictionary-on-different-server)
+   * [Usage: Update OVAL Data](#usage-update-oval-data)
+   * [レポートの日本語化](#レポートの日本語化)
+      * [fetchnvd, fetchjvnの実行順序の注意](#fetchnvd-fetchjvnの実行順序の注意)
+      * [スキャン実行](#スキャン実行)
+   * [How to Update to the Latest Version](#how-to-update-to-the-latest-version)
+   * [Misc](#misc)
+   * [Related Projects](#related-projects)
+   * [Data Source](#data-source)
+   * [Authors](#authors)
+   * [Contribute](#contribute)
+   * [Change Log](#change-log)
+   * [Stargazers over time](#stargazers-over-time)
+   * [License](#license)
 
 ----
 
@@ -37,60 +138,41 @@ Vulsは上に挙げた手動運用での課題を解決するツールであり�
 
 # Main Features
 
-- Linuxサーバに存在する脆弱性をスキャン
-    - Ubuntu, Debian, CentOS, Amazon Linux, RHELに対応
+- サーバに存在する脆弱性をスキャン
+    - FreeBSD, Ubuntu, Debian, CentOS, Amazon Linux, RHEL, Raspbianに対応
     - クラウド、オンプレミス、Docker
+- 高精度なスキャン
+    - Vulsは複数の脆弱性データベース、複数の検知方法を組み合わせることで高精度なスキャンを実現している
+        - OVAL
+        - RHSA/ALAS/ELSA/FreeBSD-SA
+        - Changelog
+- FastスキャンとDeepスキャン
+    - Fastスキャン
+        - root権限必要なし
+        - スキャン対象サーバの負荷ほぼなし
+        - インターネットに接続していない環境でもスキャン可能 (RedHat, CentOS, OracleLinux, Ubuntu, Debian)
+    - Deepスキャン
+        - Changelogの差分を取得し、そこに書かれているCVE-IDを検知
+        - スキャン対象サーバに負荷がかかる場合がある
+- リモートスキャンとローカルスキャン
+    - リモートスキャン
+        - スキャン対象サーバにSSH接続可能なマシン1台にセットアップするだけで動作
+    - ローカルスキャン
+        - もし中央のサーバから各サーバにSSH接続できない環境の場合はローカルスキャンモードでスキャン可能
+- **動的** スキャナ
+    - サーバにSSH接続してコマンドを発行可能なのでサーバの状態を取得可能
+        - カーネルアップデート後再起動していない場合に警告してくれる
 - OSパッケージ管理対象外のミドルウェアをスキャン
     - プログラミング言語のライブラリやフレームワーク、ミドルウェアの脆弱性スキャン
     - CPEに登録されているソフトウェアが対象
-- エージェントレスアーキテクチャ
-    - スキャン対象サーバにSSH接続可能なマシン1台にセットアップするだけで動作
+- 非破壊スキャン(SSHでコマンド発行するだけ)
+- AWSでの脆弱性/侵入テスト事前申請は必要なし
+    - 毎日スケジュール実行すれば新規に公開された脆弱性にすぐに気付くことができる
 - 設定ファイルのテンプレート自動生成
     - CIDRを指定してサーバを自動検出、設定ファイルのテンプレートを生成
 - EmailやSlackで通知可能（日本語でのレポートも可能）
 - 付属するTerminal-Based User Interfaceビューアでは、Vim風キーバインドでスキャン結果を参照可能
-reeBSDは今のところRoot権限なしでスキャン可能
-ial: Loc- サーバに存在する脆弱性をスキャン
-    - FreeBSD, Ubuntu, Debian, CentOS, Amazon Linux, RHEL, Oracle Linux, SUSE Enterprise, Raspbianに対応
->>>>>>>-132432d
-tuを先程セットアップしたVulsからスキャンする
-
-----
-
-# Tutorial: Local Scan Mode
-
-本チュートリアルでは、Amazon EC2にVulsをセットアップし、自分に存在する脆弱性をスキャンする方法を説明する。
-手順は以下の通り
-
-1. CentOSを新規作成
-1. 必要なソフトウェアをインストール
-1. go-cve-dictionaryをデプロイ
-1. goval-dictionaryをデプロイ
-1. Vulsをデプロイ
-1. 設定
-1. 設定ファイルと、スキャン対象サーバの設定のチェック
-1. Scan
-1. Reporting
-1. TUI(Terminal-Based User Interface)で結果を参照する
-1. Web UI([VulsRepo](https://github.com/usiusi360/vulsrepo))で結果を参照する
-
-## Step1. Launch CentOS7
-
-- 今回は説明のために、脆弱性を含む古いAMIを使う
-- EC2作成時に自動アップデートされるとVulsスキャン結果が0件になってしまうので、cloud-initに以下を指定してEC2を作成する。
-
-    ```
-    #cloud-config
-    repo_upgrade: none
-    ```
-
-    - [Q: How do I disable the automatic installation of critical and important security updates on initial launch?](https://aws.amazon.com/amazon-linux-ami/faqs/?nc1=h_ls)
-
-## Step2. Install requirements
-
-Vulsセットアップに必要な以下のソフreeBSDは今のところRoot権限なしでスキャン可能
->>>>>>>+master
-- go v1.- Web UI([VulsRepo](https://github.com/usiusi360/vulsrepo))を使えばピボットテーブルのように分析可能
+- Web UI([VulsRepo](https://github.com/usiusi360/vulsrepo))を使えばピボットテーブルのように分析可能
 
 ----
 
@@ -246,7 +328,6 @@ $ goval-dictionary fetch-redhat 7
 - [Debian](https://github.com/kotakanbe/goval-dictionary#usage-fetch-oval-data-from-debian)
 - [Ubuntu](https://github.com/kotakanbe/goval-dictionary#usage-fetch-oval-data-from-ubuntu)
 - [Oracle Linux](https://github.com/kotakanbe/goval-dictionary#usage-fetch-oval-data-from-oracle)
-- [SUSE](https://github.com/kotakanbe/goval-dictionary#usage-fetch-oval-data-from-suse)
 
 ## Step5. Deploy Vuls
 
@@ -505,10 +586,9 @@ Vulsをスキャン対象サーバにデプロイする。Vulsはローカルホ
 | Oracle      |                                   Fast |　                No |  Supported |                                      No |
 | Ubuntu      |                                   Fast |　                No |  Supported |                                      No |
 | Debian      |                                   Fast |　                No |  Supported |                                      No |
-| Raspbian    |1st time: Slow <br> From 2nd time: Fast |                Need |         No |                                    Need |
 | FreeBSD     |                                   Fast |　                No |         No |                                    Need |
 | Amazon      |                                   Fast |　                No |         No |                                    Need | 
-| SUSE Enterprise |                               Fast |　                No |  Supported |                                      No| 
+| Raspbian    |1st time: Slow <br> From 2nd time: Fast |                Need |         No |                                    Need |
 
 ----
 
@@ -524,25 +604,21 @@ Vulsをスキャン対象サーバにデプロイする。Vulsはローカルホ
 | Oracle      |                                  Slow |　                    Need | Supported |                                    Need |
 | Ubuntu      |1st time: Slow <br> From 2nd time: Fast|                      Need | Supported |                                    Need |
 | Debian      |1st time: Slow <br> From 2nd time: Fast|                      Need | Supported |                                    Need |
-| Raspbian    |1st time: Slow <br> From 2nd time: Fast|                      Need |        No |                                    Need |
 | FreeBSD     |                                  Fast |　                      No |        No |                                    Need |
 | Amazon      |                                  Slow |　                      No |        No |                                    Need |
-| SUSE Enterprise |                               Fast |　                     No |  Supported |                                      No| 
+| Raspbian    |1st time: Slow <br> From 2nd time: Fast|                      Need |        No |                                    Need |
 
 
-- On Ubuntu, Debian and Raspbian
+- Ubuntu, Debian, Raspbian
 `apt-get changelog`でアップデート対象のパッケージのチェンジログを取得し、含まれるCVE IDをパースする。
 アップデート対象のパッケージが沢山ある場合、チェンジログの取得に時間がかかるので、初回のスキャンは遅い。  
 ただ、２回目以降はキャッシュしたchangelogを使うので速くなる。  
 
-- On CentOS
+- CentOS  
 `yum changelog`でアップデート対象のパッケージのチェンジログを取得し、含まれるCVE IDをパースする。
 
-- On RHEL, Oracle, Amazon and FreeBSD
+- Amazon, RHEL and FreeBSD  
 `yum changelog`でアップデート対象のパッケージのチェンジログを取得する(パースはしない)。
-
-- On SUSE Enterprise Linux
-Same as fast scan mode for now.
 
 ----
 
@@ -570,7 +646,6 @@ web/app server in the same configuration under the load balancer
 | CentOS      |                6, 7|
 | Amazon Linux|                 All|
 | FreeBSD     |              10, 11|
-| SUSE Enterprise |           11, 12|
 | Raspbian    |    Jessie, Stretch |
 
 ----
@@ -807,7 +882,6 @@ configtestサブコマンドは、config.tomlで定義されたサーバ/コン�
 | Amazon       |                All | - |
 | RHEL         |            5, 6, 7 | - | 
 | Oracle Linux |            5, 6, 7 | - |
-| SUSE Enterprise|            11, 12 | - |
 | FreeBSD      |             10, 11 | - |
 | Raspbian     |    Jessie, Stretch | - |
 
@@ -815,7 +889,7 @@ configtestサブコマンドは、config.tomlで定義されたサーバ/コン�
 
 Deep Scan Modeではスキャン対象サーバ上にいくつかの依存パッケージが必要。
 configtestに--deepをつけて実行するとSSH接続に加えて以下もチェックする。
-- スキャン対象のサーバ上に依存パッケージがインストールされているか
+- スキャン対象のサーバ上に依存パッケーがインストールされているか
 - /etc/sudoers
 
 ### Dependencies and /etc/sudoers on Target Servers
@@ -825,14 +899,13 @@ Deep Scan Modeでスキャンするためには、下記のパッケージが必
 | Distribution |            Release | Requirements |
 |:-------------|-------------------:|:-------------|
 | Ubuntu       |          12, 14, 16| -            |
-| Debian       |             7, 8, 9| aptitude, reboot-notifier     |
+| Debian       |             7, 8, 9| aptitude, reboot-notifier   |
 | CentOS       |                6, 7| yum-plugin-changelog, yum-utils |
 | Amazon       |                All | yum-plugin-changelog, yum-utils |
 | RHEL         |                  5 | yum-utils, yum-security, yum-changelog |
 | RHEL         |               6, 7 | yum-utils, yum-plugin-changelog |
 | Oracle Linux |                  5 | yum-utils, yum-security, yum-changelog |
 | Oracle Linux |               6, 7 | yum-utils, yum-plugin-changelog |
-| SUSE Enterprise|            11, 12 | - |
 | FreeBSD      |                 10 | -            |
 | Raspbian     |     Wheezy, Jessie | -            |
 
@@ -846,13 +919,13 @@ For details, see [-ssh-native-insecure option](#-ssh-native-insecure-option)
 
 - RHEL 5 / Oracle Linux 5
 ```
-vuls ALL=(ALL) NOPASSWD:/usr/bin/yum --color=never repolist, /usr/bin/yum --color=never list-security --security, /usr/bin/yum --color=never info-security, /usr/bin/repoquery
+vuls ALL=(ALL) NOPASSWD:/usr/bin/yum --color=never repolist, /usr/bin/yum --color=never list-security --security, /usr/bin/yum --color=never info-security
 Defaults:vuls env_keep="http_proxy https_proxy HTTP_PROXY HTTPS_PROXY"
 ```
 
 - RHEL 6, 7 / Oracle Linux 6, 7
 ```
-vuls ALL=(ALL) NOPASSWD:/usr/bin/yum --color=never repolist, /usr/bin/yum --color=never --security updateinfo list updates, /usr/bin/yum --color=never --security updateinfo updates, /usr/bin/repoquery
+vuls ALL=(ALL) NOPASSWD:/usr/bin/yum --color=never repolist, /usr/bin/yum --color=never --security updateinfo list updates, /usr/bin/yum --color=never --security updateinfo updates
 Defaults:vuls env_keep="http_proxy https_proxy HTTP_PROXY HTTPS_PROXY"
 ```
 
@@ -862,9 +935,302 @@ vuls ALL=(ALL) NOPASSWD: /usr/bin/apt-get update
 Defaults:vuls env_keep="http_proxy https_proxy HTTP_PROXY HTTPS_PROXY"
 ```
 
-- CentOS, Amazon Linux, SUSE Enterprise, FreeBSDは今のところRoot権限なしでスキャン可能
->>>>>>>-132432d
-sers/kotakanbe/go/src/github.com/future-architect/vuls/oval.sqlite3")
+- CentOS, Amazon Linux, FreeBSDは今のところRoot権限なしでスキャン可能
+
+----
+
+# Usage: Scan
+
+```
+$ vuls scan -help
+scan:
+        scan
+                [-deep]
+                [-config=/path/to/config.toml]
+                [-results-dir=/path/to/results]
+                [-log-dir=/path/to/log]
+                [-cachedb-path=/path/to/cache.db]
+                [-ssh-native-insecure]
+                [-containers-only]
+                [-skip-broken]
+                [-http-proxy=http://192.168.0.1:8080]
+                [-ask-key-password]
+                [-timeout=300]
+                [-timeout-scan=7200]
+                [-debug]
+                [-pipe]
+
+                [SERVER]...
+  -ask-key-password
+        Ask ssh privatekey password before scanning
+  -cachedb-path string
+        /path/to/cache.db (local cache of changelog for Ubuntu/Debian)
+  -config string
+        /path/to/toml
+  -containers-only
+        Scan containers only. Default: Scan both of hosts and containers
+  -debug
+        debug mode
+  -deep
+        Deep scan mode. Scan accuracy improves and information becomes richer. Since analysis of changelog, issue commands requiring sudo, but it may be slower and high load on the scan tareget server.
+  -http-proxy string
+        http://proxy-url:port (default: empty)
+  -log-dir string
+        /path/to/log (default "/var/log/vuls")
+  -pipe
+        Use stdin via PIPE
+  -results-dir string
+        /path/to/results
+  -skip-broken
+        [For CentOS] yum update changelog with --skip-broken option
+  -ssh-native-insecure
+        Use Native Go implementation of SSH. Default: Use the external command
+  -timeout int
+        Number of seconds for processing other than scan (default 300)
+  -timeout-scan int
+        Number of second for scaning vulnerabilities for all servers (default 7200)
+```
+
+## -deep option
+
+You need to execute `vuls configtest --deep` to check the configuration of the target server before scanning with -deep flag.
+
+For details about deep scan mode, see below.  
+* [Architecture/Deep Scan](#deep-scan)
+* [Configtest/Deep Scan Mode](#deep-scan-mode)
+
+## -ssh-native-insecure option
+
+Vulsは２種類のSSH接続方法をサポートしている。
+
+
+デフォルトでは、外部SSHコマンドを使ってスキャンする。
+SSH Configが使えるので、ProxyCommandを使った多段SSHなどが可能。  
+CentOSでは、スキャン対象サーバの/etc/sudoersに以下を追加する必要がある(user: vuls)
+```
+Defaults:vuls !requiretty
+```
+
+-ssh-native-insecureを指定すると、Goのネイティブ実装 (crypto/ssh) を使ってスキャンする。これは、SSHコマンドがインストールされていない環境でも動作する（Windowsなど）。-ssh-native-insecureは、ホストキーのチェックをしないことに注意すべき。
+
+## -ask-key-password option
+
+| SSH key password |  -ask-key-password | |
+|:-----------------|:-------------------|:----|
+| empty password   |                 -  | |
+| with password    |           required | or use ssh-agent |
+
+## Example: Scan all servers defined in config file
+```
+$ vuls scan -ask-key-password
+```
+この例では、
+- SSH公開鍵認証（秘密鍵パスフレーズ）を指定
+- configに定義された全サーバをスキャン
+
+## Example: Scan specific servers
+```
+$ vuls scan server1 server2
+```
+この例では、
+- SSH公開鍵認証（秘密鍵パスフレーズなし）
+- ノーパスワードでsudoが実行可能
+- configで定義されているサーバの中の、server1, server2のみスキャン
+
+## Example: Scan via shell instead of SSH.
+
+ローカルホストのスキャンする場合、SSHではなく直接コマンドの発行が可能。  
+config.tomlのhostに`localhost または 127.0.0.1`かつ、portに`local`を設定する必要がある。  
+For more details, see [Architecture section](#architecture)
+
+- config.toml
+  ```
+  [servers]
+
+  [servers.localhost]
+  host         = "localhost" # or "127.0.0.1"
+  port         = "local"
+  ```
+
+### cronで動かす場合
+
+RHEL/CentOSの場合、スキャン対象サーバの/etc/sudoersに以下を追加する必要がある。(user: vuls)
+```
+Defaults:vuls !requiretty
+```
+
+## Example: Scan containers (Docker/LXD)
+
+
+コンテナはSSHデーモンを起動しないで運用するケースが一般的。  
+ [Docker Blog:Why you don't need to run SSHd in your Docker containers](https://blog.docker.com/2014/06/why-you-dont-need-to-run-sshd-in-docker/)
+
+### Docker
+
+Vulsは、DockerホストにSSHで接続し、`docker exec`でDockerコンテナにコマンドを発行して脆弱性をスキャンする。  
+詳細は、[Architecture section](#architecture)を参照
+
+- 全ての起動中のDockerコンテナをスキャン  
+  `"${running}"` をcontainersに指定する
+    ```
+    [servers]
+
+    [servers.172-31-4-82]
+    host         = "172.31.4.82"
+    user        = "ec2-user"
+    keyPath     = "/home/username/.ssh/id_rsa"
+
+    [servers.172-31-4-82.containers]
+    includes = ["${running}"]
+    ```
+
+- あるコンテナのみスキャン  
+  コンテナID、または、コンテナ名を、containersに指定する。  
+  以下の例では、`container_name_a`と、`4aa37a8b63b9`のコンテナのみスキャンする  
+  スキャン実行前に、コンテナが起動中か確認すること。もし起動してない場合はエラーメッセージを出力してスキャンを中断する。  
+    ```
+    [servers]
+
+    [servers.172-31-4-82]
+    host         = "172.31.4.82"
+    user        = "ec2-user"
+    keyPath     = "/home/username/.ssh/id_rsa"
+
+    [servers.172-31-4-82.containers]
+    includes = ["container_name_a", "4aa37a8b63b9"]
+    ```
+
+- あるコンテナ以外をスキャン  
+    ```
+    [servers]
+
+    [servers.172-31-4-82]
+    host         = "172.31.4.82"
+    user        = "ec2-user"
+    keyPath     = "/home/username/.ssh/id_rsa"
+
+    [servers.172-31-4-82.containers]
+    includes = ["${running}"]
+    excludes = ["container_name_a", "4aa37a8b63b9"]
+    ```
+
+- コンテナのみをスキャンする場合（ホストはスキャンしない）  
+  --containers-onlyオプションを指定する
+
+### LXDコンテナをスキャンする場合  
+
+Vulsは、ホストにSSHで接続し、`lxc exec`でLXDコンテナにコマンドを発行して脆弱性をスキャンする。  
+```
+[servers]
+
+[servers.172-31-4-82]
+host         = "172.31.4.82"
+user        = "ec2-user"
+keyPath     = "/home/username/.ssh/id_rsa"
+
+[servers.172-31-4-82.containers]
+type = "lxd"
+includes = ["${running}"]
+```
+
+# Usage: Report
+
+```
+report:
+        report
+                [-lang=en|ja]
+                [-config=/path/to/config.toml]
+                [-results-dir=/path/to/results]
+                [-log-dir=/path/to/log]
+                [-refresh-cve]
+                [-cvedb-type=sqlite3|mysql|postgres|redis]
+                [-cvedb-path=/path/to/cve.sqlite3]
+                [-cvedb-url=http://127.0.0.1:1323 or DB connection string]
+                [-ovaldb-type=sqlite3|mysql]
+                [-ovaldb-path=/path/to/oval.sqlite3]
+                [-ovaldb-url=http://127.0.0.1:1324 or DB connection string]
+                [-cvss-over=7]
+                [-diff]
+                [-ignore-unscored-cves]
+                [-to-email]
+                [-to-slack]
+                [-to-localfile]
+                [-to-s3]
+                [-to-azure-blob]
+                [-format-json]
+                [-format-xml]
+                [-format-one-email]
+                [-format-one-line-text]
+                [-format-short-text]
+                [-format-full-text]
+                [-gzip]
+                [-aws-profile=default]
+                [-aws-region=us-west-2]
+                [-aws-s3-bucket=bucket_name]
+                [-aws-s3-results-dir=/bucket/path/to/results]
+                [-azure-account=accout]
+                [-azure-key=key]
+                [-azure-container=container]
+                [-http-proxy=http://192.168.0.1:8080]
+                [-debug]
+                [-debug-sql]
+                [-pipe]
+
+                [SERVER]...
+  -aws-profile string
+        AWS profile to use (default "default")
+  -aws-region string
+        AWS region to use (default "us-east-1")
+  -aws-s3-bucket string
+        S3 bucket name
+  -aws-s3-results-dir string
+        /bucket/path/to/results (option)
+  -azure-account string
+        Azure account name to use. AZURE_STORAGE_ACCOUNT environment variable is used if not specified
+  -azure-container string
+        Azure storage container name
+  -azure-key string
+        Azure account key to use. AZURE_STORAGE_ACCESS_KEY environment variable is used if not specified
+  -config string
+        /path/to/toml
+  -cvedb-path string
+        /path/to/sqlite3 (For get cve detail from cve.sqlite3)
+  -cvedb-type string
+        DB type for fetching CVE dictionary (sqlite3, mysql, postgres or redis) (default "sqlite3")
+  -cvedb-url string
+        http://cve-dictionary.com:8080 or DB connection string
+  -cvss-over float
+        -cvss-over=6.5 means reporting CVSS Score 6.5 and over (default: 0 (means report all))
+  -diff
+        Difference between previous result and current result
+  -debug
+        debug mode
+  -debug-sql
+        SQL debug mode
+  -format-full-text
+        Detail report in plain text
+  -format-json
+        JSON format
+  -format-one-email
+        Send all the host report via only one EMail (Specify with -to-email)  
+  -format-one-line-text
+        One line summary in plain text
+  -format-short-text
+        Summary in plain text
+  -format-xml
+        XML format
+  -gzip
+        gzip compression
+  -http-proxy string
+        http://proxy-url:port (default: empty)
+  -ignore-unscored-cves
+        Don't report the unscored CVEs
+  -lang string
+        [en|ja] (default "en")
+  -log-dir string
+        /path/to/log (default "/var/log/vuls")
+  -ovaldb-path string
+        /path/to/sqlite3 (For get oval detail from oval.sqlite3) (default "/Users/kotakanbe/go/src/github.com/future-architect/vuls/oval.sqlite3")
   -ovaldb-type string
         DB type for fetching OVAL dictionary (sqlite3 or mysql) (default "sqlite3")
   -ovaldb-url string
@@ -948,9 +1314,9 @@ Summary                 The MOD_EXP_CTIME_COPY_FROM_PREBUF function in crypto/bn
                         1.0.1 before 1.0.1s and 1.0.2 before 1.0.2g does not properly consider
                         cache-bank access times during modular exponentiation, which makes it easier for
                         local users to discover RSA keys by running a crafted application on the same
-                        Intel Sandy Bridge CPU core as a victim and - 直近1週間に更新された脆弱性情報を取得(1分未満)
->>>>>>>+master
-ource                  https://nvd.nist.gov/vuln/detail/CVE-2016-0702
+                        Intel Sandy Bridge CPU core as a victim and leveraging cache-bank conflicts, aka
+                        a "CacheBleed" attack.
+Source                  https://nvd.nist.gov/vuln/detail/CVE-2016-0702
 RHEL-CVE                https://access.redhat.com/security/cve/CVE-2016-0702
 CWE-200 (nvd)           https://cwe.mitre.org/data/definitions/200.html
 Package/CPE             openssl-1.0.1e-30.el6 - 1.0.1e-57.el6
@@ -971,7 +1337,7 @@ Confidence              100 / OvalMatch
 
   | Detection Method       | Confidence         |  OS                              |Description|
   |:-----------------------|-------------------:|:---------------------------------|:--|
-  | OvalMatch              | 100                | CentOS, RHEL, Oracle, Ubuntu, Debian, SUSE |Detection using OVAL |
+  | OvalMatch              | 100                |                          CentOS, RHEL, Oracle, Ubuntu, Debian |Detection using OVAL |
   | YumUpdateSecurityMatch | 100                |               RHEL, Amazon, Oracle |Detection using yum-plugin-security|
   | ChangelogExactMatch    | 95                 | CentOS, Ubuntu, Debian, Raspbian |Exact version match between changelog and package version|
   | ChangelogLenientMatch  | 50                 |         Ubuntu, Debian, Raspbian |Lenient version match between changelog and package version| 
@@ -1207,14 +1573,170 @@ VulsとDependency Checkを連携させる方法は以下
 - Dependency Checkを、--format=XMLをつけて実行する
 - そのXMLをconfig.toml内で以下のように定義する
 
->>>>>>> 132432d
     ```
-    $ go-cve-dictionary fetchjvn -week
+    [servers]
+
+    [servers.172-31-4-82]
+    host         = "172.31.4.82"
+    user        = "ec2-user"
+    keyPath     = "/home/username/.ssh/id_rsa"
+    dependencyCheckXMLPath = "/tmp/dependency-check-report.xml"
     ```
 
-- 脆弱性情報の自動アップデート  
-Cronなどのジョブスケジューラを用いて実現可能。  
--week オプションを指定して夜間の日次実行を推奨。
+VulsとDependency Checkを連携すると以下の利点がある
+- ライブラリを更新した場合に、config.tomlのCPEの定義を変更しなくても良い
+- Vulsの機能でSlack, Emailで通知可能
+- 日本語のレポートが可能
+  - Dependency Checkは日本語レポートに対応していない
+
+
+# Usage: TUI
+
+## Display the latest scan results
+
+```
+tui:
+        tui
+                [-cvedb-type=sqlite3|mysql|postgres|redis]
+                [-cvedb-path=/path/to/cve.sqlite3]
+                [-cvedb-url=http://127.0.0.1:1323 DB connection string]
+                [-ovaldb-type=sqlite3|mysql]
+                [-ovaldb-path=/path/to/oval.sqlite3]
+                [-ovaldb-url=http://127.0.0.1:1324 or DB connection string]
+                [-refresh-cve]
+                [-results-dir=/path/to/results]
+                [-log-dir=/path/to/log]
+                [-debug]
+                [-debug-sql]
+                [-pipe]
+
+  -cvedb-path string
+        /path/to/sqlite3 (For get cve detail from cve.sqlite3) 
+  -cvedb-type string
+        DB type for fetching CVE dictionary (sqlite3, mysql, postgres or redis) (default "sqlite3")
+  -cvedb-url string
+        http://cve-dictionary.com:8080 or DB connection string
+  -ovaldb-path string
+        /path/to/sqlite3 (For get oval detail from oval.sqlite3) (default "/Users/kotakanbe/go/src/github.com/future-architect/vuls/oval.sqlite3")
+  -ovaldb-type string
+        DB type for fetching OVAL dictionary (sqlite3 or mysql) (default "sqlite3")
+  -ovaldb-url string
+        http://goval-dictionary.com:1324 or mysql connection string
+  -debug
+        debug mode
+  -debug-sql
+        debug SQL
+  -log-dir string
+        /path/to/log (default "/var/log/vuls")
+  -pipe
+        Use stdin via PIPE
+  -refresh-cve
+        Refresh CVE information in JSON file under results dir
+  -results-dir string
+        /path/to/results 
+```
+
+
+Key binding is below.
+
+| key | |
+|:-----------------|:-------|
+| TAB | move cursor among the panes |
+| Arrow up/down | move cursor to up/down |
+| Ctrl+j, Ctrl+k | move cursor to up/down |
+| Ctrl+u, Ctrl+d | page up/down |
+
+For details, see https://github.com/future-architect/vuls/blob/master/report/tui.go
+
+## Display the previous scan results
+
+- Display the list of scan results.
+```
+$ vuls history
+20160524_1950 scanned 1 servers: amazon2
+20160524_1940 scanned 2 servers: amazon1, romantic_goldberg
+```
+
+- Display the result of scan 20160524_1949
+```
+$ vuls tui 20160524_1950
+```
+
+- Display the result of scan 20160524_1948
+```
+$ vuls tui 20160524_1940
+```
+
+# Display the previous scan results using peco
+
+```
+$ vuls history | peco | vuls tui -pipe
+```
+
+[![asciicast](https://asciinema.org/a/emi7y7docxr60bq080z10t7v8.png)](https://asciinema.org/a/emi7y7docxr60bq080z10t7v8)
+
+# Usage: go-cve-dictionary on different server
+
+Run go-cve-dictionary as server mode before scanning on 192.168.10.1
+```
+$ go-cve-dictionary server -bind=192.168.10.1 -port=1323
+```
+
+Run Vuls with -cve-dictionary-url option.
+
+```
+$ vuls report -cve-dictionary-url=http://192.168.0.1:1323
+```
+
+# Usage: Update NVD Data
+
+see [go-cve-dictionary#usage-fetch-nvd-data](https://github.com/kotakanbe/go-cve-dictionary#usage-fetch-nvd-data)
+
+----
+
+# Usage: goval-dictionary on different server
+
+```
+$ goval-dictionary server -bind=192.168.10.1 -port=1324
+```
+
+Run Vuls with -ovaldb-url option.
+
+```
+$ vuls report -ovaldb-url=http://192.168.0.1:1323
+```
+
+# Usage: Update OVAL Data
+
+- [RedHat, CentOS](https://github.com/kotakanbe/goval-dictionary#usage-fetch-oval-data-from-redhat)
+- [Ubuntu](https://github.com/kotakanbe/goval-dictionary#usage-fetch-oval-data-from-ubuntu)
+- [Debian](https://github.com/kotakanbe/goval-dictionary#usage-fetch-oval-data-from-debian)
+- [Oracle](https://github.com/kotakanbe/goval-dictionary#usage-fetch-oval-data-from-oracle)
+
+----
+
+# レポートの日本語化
+
+see [go-cve-dictionary#usage-fetch-jvn-data](https://github.com/kotakanbe/go-cve-dictionary#usage-fetch-jvn-data)
+
+
+## fetchnvd, fetchjvnの実行順序の注意
+
+  **fetchjvn -> fetchnvdの順番だとすごく時間がかかる** (2016年9月現在)  
+  **fetchnvd -> fetchjvnの順番で実行すること**  
+
+```
+$ for i in `seq 2002 $(date +"%Y")`; do go-cve-dictionary fetchnvd -years $i; done
+$ for i in `seq 1998 $(date +"%Y")`; do go-cve-dictionary fetchjvn -years $i; done
+```
+の順でやった場合、最初のコマンドが15分程度、二つ目のコマンドが10分程度（環境依存）
+
+
+```
+$ for i in `seq 1998 $(date +"%Y")`; do go-cve-dictionary fetchjvn -years $i; done
+$ for i in `seq 2002 $(date +"%Y")`; do go-cve-dictionary fetchnvd -years $i; done
+```
+の順で行うと、最初のコマンドは1時間くらいで終わるが二つ目のコマンドが21時間かかることもある(環境依存)。
 
 
 ## スキャン実行
@@ -1225,3 +1747,136 @@ $ vuls scan -lang=ja
 Scan時にlang=jaを指定すると脆弱性レポートが日本語になる  
 slack, emailは日本語対応済み TUIは日本語表示未対応
 
+----
+
+# How to Update to the Latest Version
+
+- Update go-cve-dictionary  
+If the DB schema was changed, please specify new SQLite3, MySQL, PostgreSQL or Redis DB file.
+```
+$ cd $GOPATH/src/github.com/kotakanbe/go-cve-dictionary
+$ git pull
+$ rm -r vendor
+$ make install
+```
+
+- Update goval-dictionary  
+If the DB schema was changed, please specify new SQLite3, MySQL, PostgreSQL or Redis DB file.
+```
+$ cd $GOPATH/src/github.com/kotakanbe/goval-dictionary
+$ git pull
+$ rm -r vendor
+$ make install
+```
+
+- Update vuls
+```
+$ cd $GOPATH/src/github.com/future-architect/vuls
+$ git pull
+$ rm -r vendor
+$ make install
+```
+- バイナリファイルは`$GOPATH/bin`以下に作成される
+- もしエラーが出る場合は `$GOPATH/pkg` を削除してから実行する
+
+---
+
+# Misc
+
+- go get時にエラーが出る  
+Gitをv2にアップデートしてお試しを  
+see https://groups.google.com/forum/#!topic/mgo-users/rO1-gUDFo_g
+
+- HTTP Proxy サポート
+プロキシ環境下では、-http-proxyオプションを指定
+
+- go-cve-dictionaryのデーモン化  
+Use Systemd, Upstart or supervisord, daemontools...
+
+- NVD, JVNの脆弱性データベースの自動更新  
+CRONなどを使えば可能
+
+- 自動定期スキャン  
+CRONなどを使い、自動化のためにsudoと、秘密鍵のパスワードなしでも実行可能なようにする  
+  - スキャン対象サーバの /etc/sudoers に NOPASSWORD を設定する  
+  - 秘密鍵パスフレーズなしの公開鍵認証か、ssh-agentを使う  
+
+- スキャンが重く感じる  
+vulsのスキャン対象に脆弱性が溜まりすぎると実行時間が長くなります
+脆弱性のある状態は溜めすぎないようにしましょう
+
+- クロスコンパイル
+    ```bash
+    $ cd /path/to/your/local-git-reporsitory/vuls
+    $ GOOS=linux GOARCH=amd64 go build -o vuls.amd64
+    ```
+
+- Logging  
+Log is under /var/log/vuls/
+
+- Debug  
+Run with --debug, --sql-debug option.
+
+- Adjusting Open File Limit  
+[Riak docs](http://docs.basho.com/riak/latest/ops/tuning/open-files-limit/) is awesome.
+
+- Does Vuls accept ssh connections with fish-shell or old zsh as the login shell?  
+No, Vuls needs a user on the server for bash login. see also [#8](/../../issues/8)
+
+- Windows  
+Use Microsoft Baseline Security Analyzer. [MBSA](https://technet.microsoft.com/en-us/security/cc184924.aspx)
+
+----
+
+# Related Projects
+
+- [k1LoW/ssh_config_to_vuls_config](https://github.com/k1LoW/ssh_config_to_vuls_config)   
+ssh_config to vuls config TOML format
+
+- [usiusi360/vulsrepo](https://github.com/usiusi360/vulsrepo)  
+VulsRepo is visualized based on the json report output in vuls.  
+Youtube  
+[![vulsrepo](http://img.youtube.com/vi/DIBPoik4owc/0.jpg)](https://www.youtube.com/watch?v=DIBPoik4owc)
+
+
+----
+
+# Data Source
+
+- [NVD](https://nvd.nist.gov/)
+- [JVN(Japanese)](http://jvndb.jvn.jp/apis/myjvn/)
+
+
+# Authors
+
+kotakanbe ([@kotakanbe](https://twitter.com/kotakanbe)) created vuls and [these fine people](https://github.com/future-architect/vuls/graphs/contributors) have contributed.
+
+----
+
+# Contribute
+
+1. fork a repository: github.com/future-architect/vuls to github.com/you/repo
+2. get original code: go get github.com/future-architect/vuls
+3. work on original code
+4. add remote to your repo: git remote add myfork https://github.com/you/repo.git
+5. push your changes: git push myfork
+6. create a new Pull Request
+
+- see [GitHub and Go: forking, pull requests, and go-getting](http://blog.campoy.cat/2014/03/github-and-go-forking-pull-requests-and.html)
+
+----
+
+# Change Log
+
+Please see [CHANGELOG](https://github.com/future-architect/vuls/blob/master/CHANGELOG.md).
+
+----
+# Stargazers over time		
+		
+[![Stargazers over time](https://starcharts.herokuapp.com/future-architect/vuls.svg)](https://starcharts.herokuapp.com/future-architect/vuls)		
+
+-----
+
+# License
+
+Please see [LICENSE](https://github.com/future-architect/vuls/blob/master/LICENSE).

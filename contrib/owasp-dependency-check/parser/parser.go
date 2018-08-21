@@ -6,8 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type analysis struct {
@@ -36,15 +34,13 @@ func appendIfMissing(slice []string, str string) []string {
 func Parse(path string) ([]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		log.Warnf("OWASP Dependency Check XML is not found: %s", path)
-		return []string{}, nil
+		return nil, fmt.Errorf("Failed to open: %s", err)
 	}
 	defer file.Close()
 
 	b, err := ioutil.ReadAll(file)
 	if err != nil {
-		log.Warnf("Failed to read OWASP Dependency Check XML: %s", path)
-		return []string{}, nil
+		return nil, fmt.Errorf("Failed to read: %s", err)
 	}
 
 	var anal analysis

@@ -15,37 +15,36 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package report
+package cache
 
 import (
-	"os"
+	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/future-architect/vuls/config"
 	"github.com/future-architect/vuls/models"
-	formatter "github.com/kotakanbe/logrus-prefixed-formatter"
 )
 
-// LogrusWriter write to logfile
-type LogrusWriter struct {
+// DB has a cache instance
+var DB Cache
+
+const metabucket = "changelog-meta"
+
+// Cache is a interface of cache
+type Cache interface {
+	Close() error
+	GetMeta(string) (Meta, bool, error)
+	RefreshMeta(Meta) error
+	EnsureBuckets(Meta) error
+	PrettyPrint(Meta) error
+	GetChangelog(string, string) (string, error)
+	PutChangelog(string, string, string) error
 }
 
-func (w LogrusWriter) Write(scanResults []models.ScanResult) error {
-	path := "/var/log/vuls/report.log"
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		return err
-	}
-	log := logrus.New()
-	log.Formatter = &formatter.TextFormatter{}
-	log.Out = f
-	log.Level = logrus.InfoLevel
-
-	for _, s := range scanResults {
-		text, err := toPlainText(s)
-		if err != nil {
-			return err
-		}
-		log.Infof(text)
-	}
-	return nil
+// Meta holds a server name, distro information of the scanned server and
+// package information that was collected at the last scan.
+type Meta struct {
+	Name      string
+	Distro    config.Distro
+	Packs     models.Packages
+	CreatedAt time.Time
 }

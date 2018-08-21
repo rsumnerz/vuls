@@ -18,38 +18,37 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package commands
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 
 	c "github.com/future-architect/vuls/config"
-	"github.com/future-architect/vuls/cveapi"
-	"github.com/future-architect/vuls/report"
 	"github.com/future-architect/vuls/scan"
 	"github.com/future-architect/vuls/util"
 	"github.com/google/subcommands"
-	"golang.org/x/net/context"
+	"github.com/k0kubun/pp"
 )
 
 // ScanCmd is Subcommand of host discovery mode
 type ScanCmd struct {
-	lang     string
-	debug    bool
-	debugSQL bool
-
-	configPath string
-
-	dbpath           string
-	cveDictionaryURL string
-	cvssScoreOver    float64
-	httpProxy        string
-
-	useYumPluginSecurity  bool
-	useUnattendedUpgrades bool
-
-	// reporting
-	reportSlack bool
-	reportMail  bool
+	debug          bool
+	configPath     string
+	resultsDir     string
+	logDir         string
+	cacheDBPath    string
+	httpProxy      string
+	askKeyPassword bool
+	containersOnly bool
+	deep           bool
+	skipBroken     bool
+	sshNative      bool
+	pipe           bool
+	timeoutSec     int
+	scanTimeoutSec int
 }
 
 // Name return subcommand name
@@ -62,44 +61,64 @@ func (*ScanCmd) Synopsis() string { return "Scan vulnerabilities" }
 func (*ScanCmd) Usage() string {
 	return `scan:
 	scan
-		[-lang=en|ja]
+		[-deep]
 		[-config=/path/to/config.toml]
-		[-dbpath=/path/to/vuls.sqlite3]
-		[-cve-dictionary-url=http://127.0.0.1:1323]
-		[-cvss-over=7]
-		[-report-slack]
-		[-report-mail]
-		[-report-slack]
+		[-results-dir=/path/to/results]
+		[-log-dir=/path/to/log]
+		[-cachedb-path=/path/to/cache.db]
+		[-ssh-native-insecure]
+		[-containers-only]
+		[-skip-broken]
 		[-http-proxy=http://192.168.0.1:8080]
+		[-ask-key-password]
+		[-timeout=300]
+		[-timeout-scan=7200]
 		[-debug]
-		[-debug-sql]
+		[-pipe]
+
+		[SERVER]...
 `
 }
 
 // SetFlags set flag
 func (p *ScanCmd) SetFlags(f *flag.FlagSet) {
-	f.StringVar(&p.lang, "lang", "en", "[en|ja]")
 	f.BoolVar(&p.debug, "debug", false, "debug mode")
-	f.BoolVar(&p.debugSQL, "debug-sql", false, "SQL debug mode")
 
-	defaultConfPath := os.Getenv("PWD") + "/config.toml"
+	wd, _ := os.Getwd()
+
+	defaultConfPath := filepath.Join(wd, "config.toml")
 	f.StringVar(&p.configPath, "config", defaultConfPath, "/path/to/toml")
 
-	defaultDBPath := os.Getenv("PWD") + "/vuls.sqlite3"
-	f.StringVar(&p.dbpath, "dbpath", defaultDBPath, "/path/to/sqlite3")
+	defaultResultsDir := filepath.Join(wd, "results")
+	f.StringVar(&p.resultsDir, "results-dir", defaultResultsDir, "/path/to/results")
 
-	defaultURL := "http://127.0.0.1:1323"
+	defaultLogDir := util.GetDefaultLogDir()
+	f.StringVar(&p.logDir, "log-dir", defaultLogDir, "/path/to/log")
+
+	defaultCacheDBPath := filepath.Join(wd, "cache.db")
 	f.StringVar(
-		&p.cveDictionaryURL,
-		"cve-dictionary-url",
-		defaultURL,
-		"http://CVE.Dictionary")
+		&p.cacheDBPath,
+		"cachedb-path",
+		defaultCacheDBPath,
+		"/path/to/cache.db (local cache of changelog for Ubuntu/Debian)")
 
-	f.Float64Var(
-		&p.cvssScoreOver,
-		"cvss-over",
-		0,
-		"-cvss-over=6.5 means reporting CVSS Score 6.5 and over (default: 0 (means report all))")
+	f.BoolVar(
+		&p.sshNative,
+		"ssh-native-insecure",
+		false,
+		"Use Native Go implementation of SSH. Default: Use the external command")
+
+	f.BoolVar(
+		&p.containersOnly,
+		"containers-only",
+		false,
+		"Scan containers only. Default: Scan both of hosts and containers")
+
+	f.BoolVar(
+		&p.skipBroken,
+		"skip-broken",
+		false,
+		"[For CentOS] yum update changelog with --skip-broken option")
 
 	f.StringVar(
 		&p.httpProxy,
@@ -108,42 +127,87 @@ func (p *ScanCmd) SetFlags(f *flag.FlagSet) {
 		"http://proxy-url:port (default: empty)",
 	)
 
-	f.BoolVar(&p.reportSlack, "report-slack", false, "Send report via Slack")
-	f.BoolVar(&p.reportMail, "report-mail", false, "Send report via Email")
-	f.BoolVar(&p.reportJSON,
-		"report-json",
+	f.BoolVar(
+		&p.askKeyPassword,
+		"ask-key-password",
 		false,
-		fmt.Sprintf("Write report to JSON files (%s/results/current)", wd),
+		"Ask ssh privatekey password before scanning",
 	)
 
 	f.BoolVar(
-		&p.useYumPluginSecurity,
-		"use-yum-plugin-security",
+		&p.deep,
+		"deep",
 		false,
-		"[Depricated] For CentOS 5. Scan by yum-plugin-security or not (use yum check-update by default)",
-	)
+		"Deep scan mode. Scan accuracy improves and scanned information becomes richer. Since analysis of changelog, issue commands requiring sudo, but it may be slower and high load on the target server")
 
 	f.BoolVar(
-		&p.useUnattendedUpgrades,
-		"use-unattended-upgrades",
+		&p.pipe,
+		"pipe",
 		false,
-		"[Depricated] For Ubuntu. Scan by unattended-upgrades or not (use apt-get upgrade --dry-run by default)",
+		"Use stdin via PIPE")
+
+	f.IntVar(
+		&p.timeoutSec,
+		"timeout",
+		5*60,
+		"Number of seconds for processing other than scan",
 	)
 
+	f.IntVar(
+		&p.scanTimeoutSec,
+		"timeout-scan",
+		120*60,
+		"Number of seconds for scanning vulnerabilities for all servers",
+	)
 }
 
 // Execute execute
 func (p *ScanCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 
-	logrus.Infof("Begin scannig (config: %s)", p.configPath)
-	err := c.Load(p.configPath)
+	// Setup Logger
+	c.Conf.Debug = p.debug
+	c.Conf.LogDir = p.logDir
+	util.Log = util.NewCustomLogger(c.ServerInfo{})
+
+	var keyPass string
+	var err error
+	if p.askKeyPassword {
+		prompt := "SSH key password: "
+		if keyPass, err = getPasswd(prompt); err != nil {
+			util.Log.Error(err)
+			return subcommands.ExitFailure
+		}
+	}
+
+	err = c.Load(p.configPath, keyPass)
 	if err != nil {
 		util.Log.Errorf("Error loading %s, %s", p.configPath, err)
+		util.Log.Errorf("If you update Vuls and get this error, there may be incompatible changes in config.toml")
+		util.Log.Errorf("Please check README: https://github.com/future-architect/vuls#configuration")
 		return subcommands.ExitUsageError
 	}
 
+	util.Log.Info("Start scanning")
+	util.Log.Infof("config: %s", p.configPath)
+
+	c.Conf.Pipe = p.pipe
+	var servernames []string
+	if 0 < len(f.Args()) {
+		servernames = f.Args()
+	} else if c.Conf.Pipe {
+		bytes, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			util.Log.Errorf("Failed to read stdin: %s", err)
+			return subcommands.ExitFailure
+		}
+		fields := strings.Fields(string(bytes))
+		if 0 < len(fields) {
+			servernames = fields
+		}
+	}
+
 	target := make(map[string]c.ServerInfo)
-	for _, arg := range f.Args() {
+	for _, arg := range servernames {
 		found := false
 		for servername, info := range c.Conf.Servers {
 			if servername == arg {
@@ -157,79 +221,41 @@ func (p *ScanCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 			return subcommands.ExitUsageError
 		}
 	}
-	if 0 < len(f.Args()) {
+	if 0 < len(servernames) {
 		c.Conf.Servers = target
 	}
+	util.Log.Debugf("%s", pp.Sprintf("%v", target))
 
-	c.Conf.Lang = p.lang
-	c.Conf.Debug = p.debug
-	c.Conf.DebugSQL = p.debugSQL
-
-	// logger
-	Log := util.NewCustomLogger(c.ServerInfo{})
-	scannedAt := time.Now()
-
-	// report
-	reports := []report.ResultWriter{
-		report.TextWriter{},
-		report.LogrusWriter{},
-	}
-	if p.reportSlack {
-		reports = append(reports, report.SlackWriter{})
-	}
-	if p.reportMail {
-		reports = append(reports, report.MailWriter{})
-	}
-	if p.reportJSON {
-		reports = append(reports, report.JSONWriter{ScannedAt: scannedAt})
-	}
-
-	c.Conf.DBPath = p.dbpath
-	c.Conf.CveDictionaryURL = p.cveDictionaryURL
+	c.Conf.ResultsDir = p.resultsDir
+	c.Conf.CacheDBPath = p.cacheDBPath
+	c.Conf.SSHNative = p.sshNative
 	c.Conf.HTTPProxy = p.httpProxy
-	c.Conf.UseYumPluginSecurity = p.useYumPluginSecurity
-	c.Conf.UseUnattendedUpgrades = p.useUnattendedUpgrades
+	c.Conf.ContainersOnly = p.containersOnly
+	c.Conf.Deep = p.deep
+	c.Conf.SkipBroken = p.skipBroken
 
-	Log.Info("Validating Config...")
-	if !c.Conf.Validate() {
+	util.Log.Info("Validating config...")
+	if !c.Conf.ValidateOnScan() {
 		return subcommands.ExitUsageError
 	}
 
-	if ok, err := cveapi.CveClient.CheckHealth(); !ok {
-		Log.Errorf("CVE HTTP server is not running. %#v", cveapi.CveClient)
-		Log.Fatal(err)
+	util.Log.Info("Detecting Server/Container OS... ")
+	if err := scan.InitServers(p.timeoutSec); err != nil {
+		util.Log.Errorf("Failed to init servers: %s", err)
 		return subcommands.ExitFailure
 	}
 
-	Log.Info("Detecting OS... ")
-	err = scan.InitServers(Log)
-	if err != nil {
-		Log.Errorf("Failed to init servers. err: %s", err)
+	util.Log.Info("Detecting Platforms... ")
+	scan.DetectPlatforms(p.timeoutSec)
+
+	util.Log.Info("Scanning vulnerabilities... ")
+	if err := scan.Scan(p.scanTimeoutSec); err != nil {
+		util.Log.Errorf("Failed to scan. err: %s", err)
 		return subcommands.ExitFailure
 	}
-
-	Log.Info("Scanning vulnerabilities... ")
-	if errs := scan.Scan(); 0 < len(errs) {
-		for _, e := range errs {
-			Log.Errorf("Failed to scan. err: %s", e)
-		}
-		return subcommands.ExitFailure
-	}
-
-	scanResults, err := scan.GetScanResults()
-	if err != nil {
-		Log.Fatal(err)
-		return subcommands.ExitFailure
-	}
-
-	Log.Info("Reporting...")
-	filtered := scanResults.FilterByCvssOver()
-	for _, w := range reports {
-		if err := w.Write(filtered); err != nil {
-			Log.Fatalf("Failed to report, err: %s", err)
-			return subcommands.ExitFailure
-		}
-	}
+	fmt.Printf("\n\n\n")
+	fmt.Println("To view the detail, vuls tui is useful.")
+	fmt.Println("To send a report, run vuls report -h.")
 
 	return subcommands.ExitSuccess
 }

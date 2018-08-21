@@ -31,6 +31,12 @@ func GenWorkers(num int) chan<- func() {
 	tasks := make(chan func())
 	for i := 0; i < num; i++ {
 		go func() {
+			defer func() {
+				if p := recover(); p != nil {
+					log := NewCustomLogger(config.ServerInfo{})
+					log.Debugf("Panic: %s")
+				}
+			}()
 			for f := range tasks {
 				f()
 			}
@@ -118,3 +124,26 @@ func PrependProxyEnv(cmd string) string {
 //      }
 //      return time.Unix(i, 0), nil
 //  }
+
+// Truncate truncates string to the length
+func Truncate(str string, length int) string {
+	if length < 0 {
+		return str
+	}
+	if length <= len(str) {
+		return str[:length]
+	}
+	return str
+}
+
+// Distinct a slice
+func Distinct(ss []string) (distincted []string) {
+	m := map[string]bool{}
+	for _, s := range ss {
+		if _, found := m[s]; !found {
+			m[s] = true
+			distincted = append(distincted, s)
+		}
+	}
+	return
+}

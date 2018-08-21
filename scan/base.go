@@ -19,104 +19,157 @@ package scan
 
 import (
 	"fmt"
-	"sort"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/future-architect/vuls/config"
-	"github.com/future-architect/vuls/cveapi"
 	"github.com/future-architect/vuls/models"
+	"github.com/sirupsen/logrus"
 )
 
 type base struct {
 	ServerInfo config.ServerInfo
+	Distro     config.Distro
+	Platform   models.Platform
 
-	Family   string
-	Release  string
-	Platform models.Platform
 	osPackages
 
 	log  *logrus.Entry
 	errs []error
 }
 
-func (l *base) ssh(cmd string, sudo bool) sshResult {
-	return sshExec(l.ServerInfo, cmd, sudo, l.log)
+func (l *base) exec(cmd string, sudo bool) execResult {
+	return exec(l.ServerInfo, cmd, sudo, l.log)
 }
 
 func (l *base) setServerInfo(c config.ServerInfo) {
 	l.ServerInfo = c
 }
 
-func (l base) getServerInfo() config.ServerInfo {
+func (l *base) getServerInfo() config.ServerInfo {
 	return l.ServerInfo
 }
 
-func (l *base) setDistributionInfo(fam, rel string) {
-	l.Family = fam
-	l.Release = rel
+func (l *base) setDistro(fam, rel string) {
+	d := config.Distro{
+		Family:  fam,
+		Release: rel,
+	}
+	l.Distro = d
+
+	s := l.getServerInfo()
+	s.Distro = d
+	l.setServerInfo(s)
 }
 
-func (l base) getDistributionInfo() string {
-	return fmt.Sprintf("%s %s", l.Family, l.Release)
+func (l *base) getDistro() config.Distro {
+	return l.Distro
 }
 
 func (l *base) setPlatform(p models.Platform) {
 	l.Platform = p
 }
 
-func (l base) getPlatform() models.Platform {
+func (l *base) getPlatform() models.Platform {
 	return l.Platform
 }
 
-func (l base) allContainers() (containers []config.Container, err error) {
-	switch l.ServerInfo.Container.Type {
+func (l *base) runningKernel() (release, version string, err error) {
+	r := l.exec("uname -r", noSudo)
+	if !r.isSuccess() {
+		return "", "", fmt.Errorf("Failed to SSH: %s", r)
+	}
+	release = strings.TrimSpace(r.Stdout)
+
+	switch l.Distro.Family {
+	case config.Debian:
+		r := l.exec("uname -a", noSudo)
+		if !r.isSuccess() {
+			return "", "", fmt.Errorf("Failed to SSH: %s", r)
+		}
+		ss := strings.Fields(r.Stdout)
+		if 6 < len(ss) {
+			version = ss[6]
+		}
+	}
+	return
+}
+
+func (l *base) allContainers() (containers []config.Container, err error) {
+	switch l.ServerInfo.Containers.Type {
 	case "", "docker":
-		stdout, err := l.dockerPs("-a --format '{{.ID}} {{.Names}}'")
+		stdout, err := l.dockerPs("-a --format '{{.ID}} {{.Names}} {{.Image}}'")
 		if err != nil {
 			return containers, err
 		}
 		return l.parseDockerPs(stdout)
+	case "lxd":
+		stdout, err := l.lxdPs("-c n")
+		if err != nil {
+			return containers, err
+		}
+		return l.parseLxdPs(stdout)
 	default:
 		return containers, fmt.Errorf(
-			"Not supported yet: %s", l.ServerInfo.Container.Type)
+			"Not supported yet: %s", l.ServerInfo.Containers.Type)
 	}
 }
 
 func (l *base) runningContainers() (containers []config.Container, err error) {
-	switch l.ServerInfo.Container.Type {
+	switch l.ServerInfo.Containers.Type {
 	case "", "docker":
-		stdout, err := l.dockerPs("--format '{{.ID}} {{.Names}}'")
+		stdout, err := l.dockerPs("--format '{{.ID}} {{.Names}} {{.Image}}'")
 		if err != nil {
 			return containers, err
 		}
 		return l.parseDockerPs(stdout)
+	case "lxd":
+		stdout, err := l.lxdPs("volatile.last_state.power=RUNNING -c n")
+		if err != nil {
+			return containers, err
+		}
+		return l.parseLxdPs(stdout)
 	default:
 		return containers, fmt.Errorf(
-			"Not supported yet: %s", l.ServerInfo.Container.Type)
+			"Not supported yet: %s", l.ServerInfo.Containers.Type)
 	}
 }
 
 func (l *base) exitedContainers() (containers []config.Container, err error) {
-	switch l.ServerInfo.Container.Type {
+	switch l.ServerInfo.Containers.Type {
 	case "", "docker":
-		stdout, err := l.dockerPs("--filter 'status=exited' --format '{{.ID}} {{.Names}}'")
+		stdout, err := l.dockerPs("--filter 'status=exited' --format '{{.ID}} {{.Names}} {{.Image}}'")
 		if err != nil {
 			return containers, err
 		}
 		return l.parseDockerPs(stdout)
+	case "lxd":
+		stdout, err := l.lxdPs("volatile.last_state.power=STOPPED -c n")
+		if err != nil {
+			return containers, err
+		}
+		return l.parseLxdPs(stdout)
 	default:
 		return containers, fmt.Errorf(
-			"Not supported yet: %s", l.ServerInfo.Container.Type)
+			"Not supported yet: %s", l.ServerInfo.Containers.Type)
 	}
 }
 
 func (l *base) dockerPs(option string) (string, error) {
 	cmd := fmt.Sprintf("docker ps %s", option)
-	r := l.ssh(cmd, noSudo)
+	r := l.exec(cmd, noSudo)
 	if !r.isSuccess() {
 		return "", fmt.Errorf("Failed to SSH: %s", r)
+	}
+	return r.Stdout, nil
+}
+
+func (l *base) lxdPs(option string) (string, error) {
+	cmd := fmt.Sprintf("lxc list %s", option)
+	r := l.exec(cmd, noSudo)
+	if !r.isSuccess() {
+		return "", fmt.Errorf("failed to SSH: %s", r)
 	}
 	return r.Stdout, nil
 }
@@ -128,12 +181,34 @@ func (l *base) parseDockerPs(stdout string) (containers []config.Container, err 
 		if len(fields) == 0 {
 			break
 		}
-		if len(fields) != 2 {
+		if len(fields) != 3 {
 			return containers, fmt.Errorf("Unknown format: %s", line)
 		}
 		containers = append(containers, config.Container{
 			ContainerID: fields[0],
 			Name:        fields[1],
+			Image:       fields[2],
+		})
+	}
+	return
+}
+
+func (l *base) parseLxdPs(stdout string) (containers []config.Container, err error) {
+	lines := strings.Split(stdout, "\n")
+	for i, line := range lines[3:] {
+		if i%2 == 1 {
+			continue
+		}
+		fields := strings.Fields(strings.Replace(line, "|", " ", -1))
+		if len(fields) == 0 {
+			break
+		}
+		if len(fields) != 1 {
+			return containers, fmt.Errorf("Unknown format: %s", line)
+		}
+		containers = append(containers, config.Container{
+			ContainerID: fields[0],
+			Name:        fields[0],
 		})
 	}
 	return
@@ -158,15 +233,13 @@ func (l *base) detectPlatform() {
 	return
 }
 
-func (l base) detectRunningOnAws() (ok bool, instanceID string, err error) {
-	if r := l.ssh("type curl", noSudo); r.isSuccess() {
+func (l *base) detectRunningOnAws() (ok bool, instanceID string, err error) {
+	if r := l.exec("type curl", noSudo); r.isSuccess() {
 		cmd := "curl --max-time 1 --retry 3 --noproxy 169.254.169.254 http://169.254.169.254/latest/meta-data/instance-id"
-		r := l.ssh(cmd, noSudo)
+		r := l.exec(cmd, noSudo)
 		if r.isSuccess() {
 			id := strings.TrimSpace(r.Stdout)
-
-			if id == "not found" {
-				// status: 0, stdout: "not found" on degitalocean or Azure
+			if !l.isAwsInstanceID(id) {
 				return false, "", nil
 			}
 			return true, id, nil
@@ -181,11 +254,14 @@ func (l base) detectRunningOnAws() (ok bool, instanceID string, err error) {
 		}
 	}
 
-	if r := l.ssh("type wget", noSudo); r.isSuccess() {
+	if r := l.exec("type wget", noSudo); r.isSuccess() {
 		cmd := "wget --tries=3 --timeout=1 --no-proxy -q -O - http://169.254.169.254/latest/meta-data/instance-id"
-		r := l.ssh(cmd, noSudo)
+		r := l.exec(cmd, noSudo)
 		if r.isSuccess() {
 			id := strings.TrimSpace(r.Stdout)
+			if !l.isAwsInstanceID(id) {
+				return false, "", nil
+			}
 			return true, id, nil
 		}
 
@@ -202,98 +278,50 @@ func (l base) detectRunningOnAws() (ok bool, instanceID string, err error) {
 		l.ServerInfo.ServerName, l.ServerInfo.Container.Name)
 }
 
-func (l *base) convertToModel() (models.ScanResult, error) {
-	var scoredCves, unscoredCves models.CveInfos
-	for _, p := range l.UnsecurePackages {
-		if p.CveDetail.CvssScore(config.Conf.Lang) <= 0 {
-			unscoredCves = append(unscoredCves, models.CveInfo{
-				CveDetail:        p.CveDetail,
-				Packages:         p.Packs,
-				DistroAdvisories: p.DistroAdvisories, // only Amazon Linux
-			})
-			continue
-		}
+// http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
+var awsInstanceIDPattern = regexp.MustCompile(`^i-[0-9a-f]+$`)
 
-		cpenames := []models.CpeName{}
-		for _, cpename := range p.CpeNames {
-			cpenames = append(cpenames,
-				models.CpeName{Name: cpename})
-		}
+func (l *base) isAwsInstanceID(str string) bool {
+	return awsInstanceIDPattern.MatchString(str)
+}
 
-		cve := models.CveInfo{
-			CveDetail:        p.CveDetail,
-			Packages:         p.Packs,
-			DistroAdvisories: p.DistroAdvisories, // only Amazon Linux
-			CpeNames:         cpenames,
-		}
-		scoredCves = append(scoredCves, cve)
+func (l *base) convertToModel() models.ScanResult {
+	ctype := l.ServerInfo.Containers.Type
+	if l.ServerInfo.Container.ContainerID != "" && ctype == "" {
+		ctype = "docker"
 	}
-
 	container := models.Container{
 		ContainerID: l.ServerInfo.Container.ContainerID,
 		Name:        l.ServerInfo.Container.Name,
+		Image:       l.ServerInfo.Container.Image,
+		Type:        ctype,
 	}
 
-	sort.Sort(scoredCves)
-	sort.Sort(unscoredCves)
+	errs := []string{}
+	for _, e := range l.errs {
+		errs = append(errs, fmt.Sprintf("%s", e))
+	}
 
 	return models.ScanResult{
-		ServerName:  l.ServerInfo.ServerName,
-		ScannedAt:   time.Now(),
-		Family:      l.Family,
-		Release:     l.Release,
-		Container:   container,
-		Platform:    l.Platform,
-		KnownCves:   scoredCves,
-		UnknownCves: unscoredCves,
-		Optional:    l.ServerInfo.Optional,
-		Errors:      errs,
+		JSONVersion:   models.JSONVersion,
+		ServerName:    l.ServerInfo.ServerName,
+		ScannedAt:     time.Now(),
+		Family:        l.Distro.Family,
+		Release:       l.Distro.Release,
+		Container:     container,
+		Platform:      l.Platform,
+		ScannedCves:   l.VulnInfos,
+		RunningKernel: l.Kernel,
+		Packages:      l.Packages,
+		Optional:      l.ServerInfo.Optional,
+		Errors:        errs,
 	}
-}
-
-// scanVulnByCpeName search vulnerabilities that specified in config file.
-func (l *base) scanVulnByCpeName() error {
-	unsecurePacks := CvePacksList{}
-
-	serverInfo := l.getServerInfo()
-	cpeNames := serverInfo.CpeNames
-
-	// remove duplicate
-	set := map[string]CvePacksInfo{}
-
-	for _, name := range cpeNames {
-		details, err := cveapi.CveClient.FetchCveDetailsByCpeName(name)
-		if err != nil {
-			return err
-		}
-		for _, detail := range details {
-			if val, ok := set[detail.CveID]; ok {
-				names := val.CpeNames
-				names = append(names, name)
-				val.CpeNames = names
-				set[detail.CveID] = val
-			} else {
-				set[detail.CveID] = CvePacksInfo{
-					CveID:     detail.CveID,
-					CveDetail: detail,
-					CpeNames:  []string{name},
-				}
-			}
-		}
-	}
-
-	for key := range set {
-		unsecurePacks = append(unsecurePacks, set[key])
-	}
-	unsecurePacks = append(unsecurePacks, l.UnsecurePackages...)
-	l.setUnsecurePackages(unsecurePacks)
-	return nil
 }
 
 func (l *base) setErrs(errs []error) {
 	l.errs = errs
 }
 
-func (l base) getErrs() []error {
+func (l *base) getErrs() []error {
 	return l.errs
 }

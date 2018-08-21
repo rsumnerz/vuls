@@ -17,29 +17,29 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package report
 
-import "github.com/future-architect/vuls/models"
+import (
+	"bytes"
+	"compress/gzip"
 
-const (
-	nvdBaseURL            = "https://web.nvd.nist.gov/view/vuln/detail"
-	mitreBaseURL          = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
-	cveDetailsBaseURL     = "http://www.cvedetails.com/cve"
-	cvssV2CalcURLTemplate = "https://nvd.nist.gov/cvss/v2-calculator?name=%s&vector=%s"
-
-	redhatSecurityBaseURL = "https://access.redhat.com/security/cve"
-	redhatRHSABaseBaseURL = "https://rhn.redhat.com/errata/%s.html"
-	amazonSecurityBaseURL = "https://alas.aws.amazon.com/%s.html"
-	oracleSecurityBaseURL = "https://linux.oracle.com/cve/%s.html"
-	oracleELSABaseBaseURL = "https://linux.oracle.com/errata/%s.html"
-
-	ubuntuSecurityBaseURL = "http://people.ubuntu.com/~ubuntu-security/cve"
-	debianTrackerBaseURL  = "https://security-tracker.debian.org/tracker"
-
-	freeBSDVuXMLBaseURL = "https://vuxml.freebsd.org/freebsd/%s.html"
+	"github.com/future-architect/vuls/models"
 )
 
 // ResultWriter Interface
 type ResultWriter interface {
-	Write([]models.ScanResult) error
+	Write(...models.ScanResult) error
 }
 
-var resultDirPath string
+func gz(data []byte) ([]byte, error) {
+	var b bytes.Buffer
+	gz := gzip.NewWriter(&b)
+	if _, err := gz.Write(data); err != nil {
+		return nil, err
+	}
+	if err := gz.Flush(); err != nil {
+		return nil, err
+	}
+	if err := gz.Close(); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}

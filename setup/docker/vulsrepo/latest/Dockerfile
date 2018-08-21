@@ -1,32 +1,31 @@
-FROM golang:alpine as builder
+FROM httpd:2.4
 
-RUN apk --no-cache add git
+MAINTAINER hikachan sadayuki-matsuno
+# install packages
+RUN apt-get update \
+        && apt-get install -y --no-install-recommends \
+      	  ca-certificates \
+          vim \
+          git \
+          libcgi-pm-perl \
+          libjson-perl \
+        && rm -r /var/lib/apt/lists/*
 
-ENV REPOSITORY github.com/usiusi360/vulsrepo
-
-RUN git clone https://$REPOSITORY.git $GOPATH/src/$REPOSITORY \
-    && cd $GOPATH/src/$REPOSITORY/server \
-    && go get -u github.com/golang/dep/... \
-    && dep ensure \
-    && go build -ldflags "-s -w" -o $GOPATH/bin/vulsrepo-server
-
-RUN mkdir /vulsrepo \
-    && mv $GOPATH/src/$REPOSITORY/server/vulsrepo-config.toml.sample /vulsrepo/vulsrepo-config.toml \
-    && mv $GOPATH/src/$REPOSITORY /vulsrepo/www \
-    && rm -rf /vulsrepo/www/.git* /vulsrepo/www/server \
-    && sed -i -e 's/vulsrepo/www/g' /vulsrepo/vulsrepo-config.toml \
-    && sed -i -e 's/home\/vuls-user/vulsrepo/g' /vulsrepo/vulsrepo-config.toml \
-    && sed -i -e 's/\/opt//g' /vulsrepo/vulsrepo-config.toml
-
-FROM alpine:3.7
-
-MAINTAINER hikachan sadayuki-matsuno usiusi360
-
-COPY --from=builder /go/bin/vulsrepo-server /usr/local/bin/
-COPY --from=builder /vulsrepo /vulsrepo
+# env
+ENV HTTPD_PREFIX /usr/local/apache2
 
 VOLUME /vuls
-WORKDIR /vulsrepo
 
-EXPOSE 5111
-CMD ["vulsrepo-server"]
+WORKDIR ${HTTPD_PREFIX}/htdocs
+RUN git clone https://github.com/usiusi360/vulsrepo.git \
+     && echo "LoadModule cgid_module modules/mod_cgid.so" >> $HTTPD_PREFIX/conf/httpd.conf \
+     && echo "<Directory \"$HTTPD_PREFIX/htdocs/vulsrepo/dist/cgi\">" >> $HTTPD_PREFIX/conf/httpd.conf \
+     && echo "  Options +ExecCGI +FollowSymLinks" >> $HTTPD_PREFIX/conf/httpd.conf \
+     && echo "  AddHandler cgi-script cgi" >> $HTTPD_PREFIX/conf/httpd.conf \
+     && echo "</Directory>" >> $HTTPD_PREFIX/conf/httpd.conf \
+     && sed -i -e 's/User daemon/#User/g' $HTTPD_PREFIX/conf/httpd.conf \
+     && sed -i -e 's/Group daemon/#Group/g' $HTTPD_PREFIX/conf/httpd.conf \
+     && ln -snf /vuls/results /usr/local/apache2/htdocs/vulsrepo/results
+
+EXPOSE 80
+CMD ["httpd-foreground"]

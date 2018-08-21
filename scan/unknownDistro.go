@@ -30,14 +30,6 @@ func (o *unknown) checkDependencies() error {
 	return nil
 }
 
-func (o *unknown) preCure() error {
-	return nil
-}
-
-func (o *unknown) postScan() error {
-	return nil
-}
-
 func (o *unknown) scanPackages() error {
 	return nil
 }

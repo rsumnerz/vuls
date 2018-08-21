@@ -19,14 +19,46 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"runtime"
+	"strconv"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	valid "github.com/asaskevich/govalidator"
+	log "github.com/sirupsen/logrus"
 )
 
 // Conf has Configuration
 var Conf Config
+
+const (
+	// RedHat is
+	RedHat = "redhat"
+
+	// Debian is
+	Debian = "debian"
+
+	// Ubuntu is
+	Ubuntu = "ubuntu"
+
+	// CentOS is
+	CentOS = "centos"
+
+	// Fedora is
+	Fedora = "fedora"
+
+	// Amazon is
+	Amazon = "amazon"
+
+	// Oracle is
+	Oracle = "oracle"
+
+	// FreeBSD is
+	FreeBSD = "freebsd"
+
+	// Raspbian is
+	Raspbian = "raspbian"
+)
 
 //Config is struct of Configuration
 type Config struct {
@@ -34,30 +66,108 @@ type Config struct {
 	DebugSQL bool
 	Lang     string
 
-	Mail    smtpConf
+	EMail   SMTPConf
 	Slack   SlackConf
 	Default ServerInfo
 	Servers map[string]ServerInfo
 
-	CveDictionaryURL string `valid:"url"`
+	CvssScoreOver      float64
+	IgnoreUnscoredCves bool
 
-	CvssScoreOver float64
-	HTTPProxy     string `valid:"url"`
-	DBPath        string
-	//  CpeNames      []string
-	//  SummaryMode          bool
-	UseYumPluginSecurity  bool
-	UseUnattendedUpgrades bool
+	SSHNative      bool
+	ContainersOnly bool
+	Deep           bool
+	SkipBroken     bool
+
+	HTTPProxy  string `valid:"url"`
+	LogDir     string
+	ResultsDir string
+
+	CveDBType string
+	CveDBPath string
+	CveDBURL  string
+
+	OvalDBType string
+	OvalDBPath string
+	OvalDBURL  string
+
+	CacheDBPath string
+
+	RefreshCve bool
+
+	FormatXML         bool
+	FormatJSON        bool
+	FormatOneEMail    bool
+	FormatOneLineText bool
+	FormatShortText   bool
+	FormatFullText    bool
+
+	GZIP bool
+
+	AwsProfile   string
+	AwsRegion    string
+	S3Bucket     string
+	S3ResultsDir string
+
+	AzureAccount   string
+	AzureKey       string `json:"-"`
+	AzureContainer string
+
+	Pipe bool
+	Diff bool
 }
 
-// Validate configuration
-func (c Config) Validate() bool {
+// ValidateOnConfigtest validates
+func (c Config) ValidateOnConfigtest() bool {
 	errs := []error{}
 
-	if len(c.JSONBaseDir) != 0 {
-		if ok, _ := valid.IsFilePath(c.JSONBaseDir); !ok {
+	if runtime.GOOS == "windows" && !c.SSHNative {
+		errs = append(errs, fmt.Errorf("-ssh-native-insecure is needed on windows"))
+	}
+
+	_, err := valid.ValidateStruct(c)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	for _, err := range errs {
+		log.Error(err)
+	}
+
+	return len(errs) == 0
+}
+
+// ValidateOnPrepare validates configuration
+func (c Config) ValidateOnPrepare() bool {
+	return c.ValidateOnConfigtest()
+}
+
+// ValidateOnScan validates configuration
+func (c Config) ValidateOnScan() bool {
+	errs := []error{}
+
+	if len(c.ResultsDir) != 0 {
+		if ok, _ := valid.IsFilePath(c.ResultsDir); !ok {
 			errs = append(errs, fmt.Errorf(
-				"JSON base directory must be a *Absolute* file path. jsonBaseDir: %s", c.JSONBaseDir))
+				"JSON base directory must be a *Absolute* file path. -results-dir: %s", c.ResultsDir))
+		}
+	}
+
+	if runtime.GOOS == "windows" && !c.SSHNative {
+		errs = append(errs, fmt.Errorf("-ssh-native-insecure is needed on windows"))
+	}
+
+	if len(c.ResultsDir) != 0 {
+		if ok, _ := valid.IsFilePath(c.ResultsDir); !ok {
+			errs = append(errs, fmt.Errorf(
+				"JSON base directory must be a *Absolute* file path. -results-dir: %s", c.ResultsDir))
+		}
+	}
+
+	if len(c.CacheDBPath) != 0 {
+		if ok, _ := valid.IsFilePath(c.CacheDBPath); !ok {
+			errs = append(errs, fmt.Errorf(
+				"Cache DB path must be a *Absolute* file path. -cache-dbpath: %s", c.CacheDBPath))
 		}
 	}
 
@@ -66,7 +176,43 @@ func (c Config) Validate() bool {
 		errs = append(errs, err)
 	}
 
-	if mailerrs := c.Mail.Validate(); 0 < len(mailerrs) {
+	for _, err := range errs {
+		log.Error(err)
+	}
+
+	return len(errs) == 0
+}
+
+// ValidateOnReport validates configuration
+func (c Config) ValidateOnReport() bool {
+	errs := []error{}
+
+	if len(c.ResultsDir) != 0 {
+		if ok, _ := valid.IsFilePath(c.ResultsDir); !ok {
+			errs = append(errs, fmt.Errorf(
+				"JSON base directory must be a *Absolute* file path. -results-dir: %s", c.ResultsDir))
+		}
+	}
+
+	if err := validateDB("cvedb", c.CveDBType, c.CveDBPath, c.CveDBURL); err != nil {
+		errs = append(errs, err)
+	}
+	if c.CveDBType == "sqlite3" {
+		if _, err := os.Stat(c.CveDBPath); os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf("SQLite3 DB path (%s) is not exist: %s", "cvedb", c.CveDBPath))
+		}
+	}
+
+	if err := validateDB("ovaldb", c.OvalDBType, c.OvalDBPath, c.OvalDBURL); err != nil {
+		errs = append(errs, err)
+	}
+
+	_, err := valid.ValidateStruct(c)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if mailerrs := c.EMail.Validate(); 0 < len(mailerrs) {
 		errs = append(errs, mailerrs...)
 	}
 
@@ -81,13 +227,80 @@ func (c Config) Validate() bool {
 	return len(errs) == 0
 }
 
-// smtpConf is smtp config
-type smtpConf struct {
+// ValidateOnTui validates configuration
+func (c Config) ValidateOnTui() bool {
+	errs := []error{}
+
+	if len(c.ResultsDir) != 0 {
+		if ok, _ := valid.IsFilePath(c.ResultsDir); !ok {
+			errs = append(errs, fmt.Errorf(
+				"JSON base directory must be a *Absolute* file path. -results-dir: %s", c.ResultsDir))
+		}
+	}
+
+	if err := validateDB("cvedb", c.CveDBType, c.CveDBPath, c.CveDBURL); err != nil {
+		errs = append(errs, err)
+	}
+	if c.CveDBType == "sqlite3" {
+		if _, err := os.Stat(c.CveDBPath); os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf("SQLite3 DB path (%s) is not exist: %s", "cvedb", c.CveDBPath))
+		}
+	}
+
+	for _, err := range errs {
+		log.Error(err)
+	}
+
+	return len(errs) == 0
+}
+
+// validateDB validates configuration
+//  dictionaryDB name is 'cvedb' or 'ovaldb'
+func validateDB(dictionaryDBName, dbType, dbPath, dbURL string) error {
+	switch dbType {
+	case "sqlite3":
+		if ok, _ := valid.IsFilePath(dbPath); !ok {
+			return fmt.Errorf(
+				"SQLite3 DB path (%s) must be a *Absolute* file path. -%s-path: %s",
+				dictionaryDBName,
+				dictionaryDBName,
+				dbPath)
+		}
+	case "mysql":
+		if dbURL == "" {
+			return fmt.Errorf(
+				`MySQL connection string is needed. -%s-url="user:pass@tcp(localhost:3306)/dbname"`,
+				dictionaryDBName)
+		}
+	case "postgres":
+		if dbURL == "" {
+			return fmt.Errorf(
+				`PostgreSQL connection string is needed. -%s-url="host=myhost user=user dbname=dbname sslmode=disable password=password"`,
+				dictionaryDBName)
+		}
+	case "redis":
+		if dbURL == "" {
+			return fmt.Errorf(
+				`Redis connection string is needed. -%s-url="redis://localhost/0"`,
+				dictionaryDBName)
+		}
+	default:
+		return fmt.Errorf(
+			"%s type must be either 'sqlite3', 'mysql', 'postgres' or 'redis'.  -%s-type: %s",
+			dictionaryDBName,
+			dictionaryDBName,
+			dbType)
+	}
+	return nil
+}
+
+// SMTPConf is smtp config
+type SMTPConf struct {
 	SMTPAddr string
 	SMTPPort string `valid:"port"`
 
 	User          string
-	Password      string
+	Password      string `json:"-"`
 	From          string
 	To            []string
 	Cc            []string
@@ -109,7 +322,7 @@ func checkEmails(emails []string) (errs []error) {
 }
 
 // Validate SMTP configuration
-func (c *smtpConf) Validate() (errs []error) {
+func (c *SMTPConf) Validate() (errs []error) {
 
 	if !c.UseThisTime {
 		return
@@ -147,7 +360,7 @@ func (c *smtpConf) Validate() (errs []error) {
 
 // SlackConf is slack config
 type SlackConf struct {
-	HookURL   string `valid:"url"`
+	HookURL   string `valid:"url" json:"-"`
 	Channel   string `json:"channel"`
 	IconEmoji string `json:"icon_emoji"`
 	AuthUser  string `json:"username"`
@@ -160,7 +373,6 @@ type SlackConf struct {
 
 // Validate validates configuration
 func (c *SlackConf) Validate() (errs []error) {
-
 	if !c.UseThisTime {
 		return
 	}
@@ -188,8 +400,6 @@ func (c *SlackConf) Validate() (errs []error) {
 		errs = append(errs, err)
 	}
 
-	// TODO check if slack configration is valid
-
 	return
 }
 
@@ -197,25 +407,80 @@ func (c *SlackConf) Validate() (errs []error) {
 type ServerInfo struct {
 	ServerName  string
 	User        string
-	Password    string
 	Host        string
 	Port        string
 	KeyPath     string
-	KeyPassword string
-	SudoOpt     SudoOption
+	KeyPassword string `json:"-"`
 
-	CpeNames []string
+	CpeNames               []string
+	DependencyCheckXMLPath string
 
-	// DebugLog Color
-	LogMsgAnsiColor string
+	// Container Names or IDs
+	Containers Containers
+
+	IgnoreCves []string
+
+	// Optional key-value set that will be outputted to JSON
+	Optional [][]interface{}
+
+	// For CentOS, RHEL, Amazon
+	Enablerepo []string
+
+	// used internal
+	LogMsgAnsiColor string // DebugLog Color
+	Container       Container
+	Distro          Distro
 }
 
-// SudoOption is flag of sudo option.
-type SudoOption struct {
+// GetServerName returns ServerName if this serverInfo is about host.
+// If this serverInfo is abount a container, returns containerID@ServerName
+func (s ServerInfo) GetServerName() string {
+	if len(s.Container.ContainerID) == 0 {
+		return s.ServerName
+	}
+	return fmt.Sprintf("%s@%s", s.Container.ContainerID, s.ServerName)
+}
 
-	// echo pass | sudo -S ls
-	ExecBySudo bool
+// Distro has distribution info
+type Distro struct {
+	Family  string
+	Release string
+}
 
-	// echo pass | sudo sh -C 'ls'
-	ExecBySudoSh bool
+func (l Distro) String() string {
+	return fmt.Sprintf("%s %s", l.Family, l.Release)
+}
+
+// MajorVersion returns Major version
+func (l Distro) MajorVersion() (ver int, err error) {
+	if 0 < len(l.Release) {
+		ver, err = strconv.Atoi(strings.Split(l.Release, ".")[0])
+	} else {
+		err = fmt.Errorf("Release is empty")
+	}
+	return
+}
+
+// IsContainer returns whether this ServerInfo is about container
+func (s ServerInfo) IsContainer() bool {
+	return 0 < len(s.Container.ContainerID)
+}
+
+// SetContainer set container
+func (s *ServerInfo) SetContainer(d Container) {
+	s.Container = d
+}
+
+// Containers has Containers information.
+type Containers struct {
+	Type     string
+	Includes []string
+	Excludes []string
+}
+
+// Container has Container information.
+type Container struct {
+	ContainerID string
+	Name        string
+	Image       string
 }

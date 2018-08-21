@@ -15,10 +15,4 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package main
-
-// Name.
-const Name string = "vuls"
-
-// Version.
-const Version string = "0.1.0"
+package commands

@@ -44,9 +44,7 @@ type ReportCmd struct {
 
 	cvssScoreOver      float64
 	ignoreUnscoredCves bool
-	ignoreUnfixed      bool
-
-	httpProxy string
+	httpProxy          string
 
 	cveDBType string
 	cveDBPath string
@@ -57,9 +55,7 @@ type ReportCmd struct {
 	ovalDBURL  string
 
 	toSlack     bool
-	toHipChat   bool
 	toEMail     bool
-	toSyslog    bool
 	toLocalFile bool
 	toS3        bool
 	toAzureBlob bool
@@ -73,17 +69,17 @@ type ReportCmd struct {
 
 	gzip bool
 
-	awsProfile                string
-	awsRegion                 string
-	awsS3Bucket               string
-	awsS3ResultsDir           string
-	awsS3ServerSideEncryption string
+	awsProfile      string
+	awsS3Bucket     string
+	awsS3ResultsDir string
+	awsRegion       string
 
 	azureAccount   string
 	azureKey       string
 	azureContainer string
 
 	pipe bool
+
 	diff bool
 }
 
@@ -111,10 +107,8 @@ func (*ReportCmd) Usage() string {
 		[-cvss-over=7]
 		[-diff]
 		[-ignore-unscored-cves]
-		[-ignore-unfixed]
 		[-to-email]
 		[-to-slack]
-		[-to-hipchat]
 		[-to-localfile]
 		[-to-s3]
 		[-to-azure-blob]
@@ -129,7 +123,6 @@ func (*ReportCmd) Usage() string {
 		[-aws-region=us-west-2]
 		[-aws-s3-bucket=bucket_name]
 		[-aws-s3-results-dir=/bucket/path/to/results]
-		[-aws-s3-server-side-encryption=AES256]
 		[-azure-account=account]
 		[-azure-key=key]
 		[-azure-container=container]
@@ -138,7 +131,7 @@ func (*ReportCmd) Usage() string {
 		[-debug-sql]
 		[-pipe]
 
-		[RFC3339 datetime format under results dir]
+		[SERVER]...
 `
 }
 
@@ -220,12 +213,6 @@ func (p *ReportCmd) SetFlags(f *flag.FlagSet) {
 		false,
 		"Don't report the unscored CVEs")
 
-	f.BoolVar(
-		&p.ignoreUnfixed,
-		"ignore-unfixed",
-		false,
-		"Don't report the unfixed CVEs")
-
 	f.StringVar(
 		&p.httpProxy,
 		"http-proxy",
@@ -265,9 +252,7 @@ func (p *ReportCmd) SetFlags(f *flag.FlagSet) {
 	f.BoolVar(&p.gzip, "gzip", false, "gzip compression")
 
 	f.BoolVar(&p.toSlack, "to-slack", false, "Send report via Slack")
-	f.BoolVar(&p.toHipChat, "to-hipchat", false, "Send report via hipchat")
 	f.BoolVar(&p.toEMail, "to-email", false, "Send report via Email")
-	f.BoolVar(&p.toSyslog, "to-syslog", false, "Send report via Syslog")
 	f.BoolVar(&p.toLocalFile,
 		"to-localfile",
 		false,
@@ -281,7 +266,6 @@ func (p *ReportCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&p.awsRegion, "aws-region", "us-east-1", "AWS region to use")
 	f.StringVar(&p.awsS3Bucket, "aws-s3-bucket", "", "S3 bucket name")
 	f.StringVar(&p.awsS3ResultsDir, "aws-s3-results-dir", "", "/bucket/path/to/results")
-	f.StringVar(&p.awsS3ServerSideEncryption, "aws-s3-server-side-encryption", "", "The Server-side encryption algorithm used when storing the reports in S3 (e.g., AES256, aws:kms).")
 
 	f.BoolVar(&p.toAzureBlob,
 		"to-azure-blob",
@@ -319,6 +303,7 @@ func (p *ReportCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}
 	c.Conf.Lang = p.lang
 	c.Conf.ResultsDir = p.resultsDir
 	c.Conf.RefreshCve = p.refreshCve
+	c.Conf.Diff = p.diff
 	c.Conf.CveDBType = p.cveDBType
 	c.Conf.CveDBPath = p.cveDBPath
 	c.Conf.CveDBURL = p.cveDBURL
@@ -327,16 +312,7 @@ func (p *ReportCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}
 	c.Conf.OvalDBURL = p.ovalDBURL
 	c.Conf.CvssScoreOver = p.cvssScoreOver
 	c.Conf.IgnoreUnscoredCves = p.ignoreUnscoredCves
-	c.Conf.IgnoreUnfixed = p.ignoreUnfixed
 	c.Conf.HTTPProxy = p.httpProxy
-
-	c.Conf.ToSlack = p.toSlack
-	c.Conf.ToHipChat = p.toHipChat
-	c.Conf.ToEmail = p.toEMail
-	c.Conf.ToSyslog = p.toSyslog
-	c.Conf.ToLocalFile = p.toLocalFile
-	c.Conf.ToS3 = p.toS3
-	c.Conf.ToAzureBlob = p.toAzureBlob
 
 	c.Conf.FormatXML = p.formatXML
 	c.Conf.FormatJSON = p.formatJSON
@@ -370,16 +346,8 @@ func (p *ReportCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}
 		reports = append(reports, report.SlackWriter{})
 	}
 
-	if p.toHipChat {
-		reports = append(reports, report.HipChatWriter{})
-	}
-
 	if p.toEMail {
 		reports = append(reports, report.EMailWriter{})
-	}
-
-	if p.toSyslog {
-		reports = append(reports, report.SyslogWriter{})
 	}
 
 	if p.toLocalFile {
@@ -393,7 +361,6 @@ func (p *ReportCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}
 		c.Conf.AwsProfile = p.awsProfile
 		c.Conf.S3Bucket = p.awsS3Bucket
 		c.Conf.S3ResultsDir = p.awsS3ResultsDir
-		c.Conf.S3ServerSideEncryption = p.awsS3ServerSideEncryption
 		if err := report.CheckIfBucketExists(); err != nil {
 			util.Log.Errorf("Check if there is a bucket beforehand: %s, err: %s", c.Conf.S3Bucket, err)
 			return subcommands.ExitUsageError
@@ -447,16 +414,11 @@ func (p *ReportCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}
 	}
 
 	if c.Conf.OvalDBURL != "" {
-		util.Log.Infof("oval-dictionary: %s", c.Conf.OvalDBURL)
 		err := oval.Base{}.CheckHTTPHealth()
 		if err != nil {
 			util.Log.Errorf("OVAL HTTP server is not running. err: %s", err)
 			util.Log.Errorf("Run goval-dictionary as server mode before reporting or run with -ovaldb-path option")
 			return subcommands.ExitFailure
-		}
-	} else {
-		if c.Conf.OvalDBType == "sqlite3" {
-			util.Log.Infof("oval-dictionary: %s", c.Conf.OvalDBPath)
 		}
 	}
 

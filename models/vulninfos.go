@@ -104,11 +104,28 @@ func (v VulnInfos) FormatCveSummary() string {
 		m["High"], m["Medium"], m["Low"], m["Unknown"])
 }
 
+// PackageStatuses is a list of PackageStatus
+type PackageStatuses []PackageStatus
+
+// Sort by Name
+func (p PackageStatuses) Sort() {
+	sort.Slice(p, func(i, j int) bool {
+		return p[i].Name < p[j].Name
+	})
+	return
+}
+
+// PackageStatus has name and other status abount the package
+type PackageStatus struct {
+	Name        string
+	NotFixedYet bool
+}
+
 // VulnInfo has a vulnerability information and unsecure packages
 type VulnInfo struct {
 	CveID            string
 	Confidence       Confidence
-	PackageNames     []string
+	AffectedPackages PackageStatuses
 	DistroAdvisories []DistroAdvisory // for Aamazon, RHEL, FreeBSD
 	CpeNames         []string
 	CveContents      CveContents
@@ -529,8 +546,6 @@ func (v VulnInfo) VendorLinks(family string) map[string]string {
 		return links
 	case config.Debian:
 		links["Debian-CVE"] = "https://security-tracker.debian.org/tracker/" + v.CveID
-	case config.SUSEEnterpriseServer:
-		links["SUSE-CVE"] = "https://www.suse.com/security/cve/" + v.CveID
 	case config.FreeBSD:
 		for _, advisory := range v.DistroAdvisories {
 			links["FreeBSD-VuXML"] = fmt.Sprintf("https://vuxml.freebsd.org/freebsd/%s.html", advisory.AdvisoryID)
@@ -549,8 +564,8 @@ func (v *VulnInfo) NilToEmpty() *VulnInfo {
 	if v.DistroAdvisories == nil {
 		v.DistroAdvisories = []DistroAdvisory{}
 	}
-	if v.PackageNames == nil {
-		v.PackageNames = []string{}
+	if v.AffectedPackages == nil {
+		v.AffectedPackages = PackageStatuses{}
 	}
 	if v.CveContents == nil {
 		v.CveContents = NewCveContents()

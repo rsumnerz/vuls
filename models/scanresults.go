@@ -40,18 +40,14 @@ type ScanResult struct {
 	Release     string
 	Container   Container
 	Platform    Platform
-	IPv4Addrs   []string // only global unicast address (https://golang.org/pkg/net/#IP.IsGlobalUnicast)
-	IPv6Addrs   []string // only global unicast address (https://golang.org/pkg/net/#IP.IsGlobalUnicast)
 
 	// Scanned Vulns by SSH scan + CPE + OVAL
 	ScannedCves VulnInfos
 
 	RunningKernel Kernel
 	Packages      Packages
-	SrcPackages   SrcPackages
-
-	Errors   []string
-	Optional [][]interface{}
+	Errors        []string
+	Optional      [][]interface{}
 
 	Config struct {
 		Scan   config.Config
@@ -80,8 +76,10 @@ func (r ScanResult) FilterByCvssOver(over float64) ScanResult {
 		}
 		return false
 	})
-	r.ScannedCves = filtered
-	return r
+
+	copiedScanResult := r
+	copiedScanResult.ScannedCves = filtered
+	return copiedScanResult
 }
 
 // FilterIgnoreCves is filter function.
@@ -94,24 +92,9 @@ func (r ScanResult) FilterIgnoreCves(cveIDs []string) ScanResult {
 		}
 		return true
 	})
-	r.ScannedCves = filtered
-	return r
-}
-
-// FilterUnfixed is filter function.
-func (r ScanResult) FilterUnfixed() ScanResult {
-	if !config.Conf.IgnoreUnfixed {
-		return r
-	}
-	filtered := r.ScannedCves.Find(func(v VulnInfo) bool {
-		NotFixedAll := true
-		for _, p := range v.AffectedPackages {
-			NotFixedAll = NotFixedAll && p.NotFixedYet
-		}
-		return !NotFixedAll
-	})
-	r.ScannedCves = filtered
-	return r
+	copiedScanResult := r
+	copiedScanResult.ScannedCves = filtered
+	return copiedScanResult
 }
 
 // ReportFileName returns the filename on localhost without extention

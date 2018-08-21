@@ -41,7 +41,6 @@ import (
 
 type execResult struct {
 	Servername string
-	Container  conf.Container
 	Host       string
 	Port       string
 	Cmd        string
@@ -52,16 +51,9 @@ type execResult struct {
 }
 
 func (s execResult) String() string {
-	sname := ""
-	if s.Container.ContainerID == "" {
-		sname = s.Servername
-	} else {
-		sname = s.Container.Name + "@" + s.Servername
-	}
-
 	return fmt.Sprintf(
 		"execResult: servername: %s\n  cmd: %s\n  exitstatus: %d\n  stdout: %s\n  stderr: %s\n  err: %s",
-		sname, s.Cmd, s.ExitStatus, s.Stdout, s.Stderr, s.Error)
+		s.Servername, s.Cmd, s.ExitStatus, s.Stdout, s.Stderr, s.Error)
 }
 
 func (s execResult) isSuccess(expectedStatusCodes ...int) bool {
@@ -175,11 +167,10 @@ func exec(c conf.ServerInfo, cmd string, sudo bool, log ...*logrus.Entry) (resul
 func localExec(c conf.ServerInfo, cmdstr string, sudo bool) (result execResult) {
 	cmdstr = decorateCmd(c, cmdstr, sudo)
 	var cmd *ex.Cmd
-	switch c.Distro.Family {
-	// case conf.FreeBSD, conf.Alpine, conf.Debian:
-	// cmd = ex.Command("/bin/sh", "-c", cmdstr)
-	default:
+	if c.Distro.Family == conf.FreeBSD {
 		cmd = ex.Command("/bin/sh", "-c", cmdstr)
+	} else {
+		cmd = ex.Command("/bin/bash", "-c", cmdstr)
 	}
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -205,7 +196,6 @@ func localExec(c conf.ServerInfo, cmdstr string, sudo bool) (result execResult) 
 
 func sshExecNative(c conf.ServerInfo, cmd string, sudo bool) (result execResult) {
 	result.Servername = c.ServerName
-	result.Container = c.Container
 	result.Host = c.Host
 	result.Port = c.Port
 
@@ -275,9 +265,13 @@ func sshExecExternal(c conf.ServerInfo, cmd string, sudo bool) (result execResul
 		"-o", "LogLevel=quiet",
 		"-o", "ConnectionAttempts=3",
 		"-o", "ConnectTimeout=10",
-		"-o", "ControlMaster=auto",
-		"-o", `ControlPath=~/.ssh/controlmaster-%r-%h.%p`,
-		"-o", "Controlpersist=10m",
+		"-o", "ControlMaster=no",
+		"-o", "ControlPath=none",
+
+		// TODO ssh session multiplexing
+		//  "-o", "ControlMaster=auto",
+		//  "-o", `ControlPath=~/.ssh/controlmaster-%r-%h.%p`,
+		//  "-o", "Controlpersist=30m",
 	}
 	args := append(defaultSSHArgs, fmt.Sprintf("%s@%s", c.User, c.Host))
 	args = append(args, "-p", c.Port)
@@ -317,7 +311,6 @@ func sshExecExternal(c conf.ServerInfo, cmd string, sudo bool) (result execResul
 	result.Stdout = stdoutBuf.String()
 	result.Stderr = stderrBuf.String()
 	result.Servername = c.ServerName
-	result.Container = c.Container
 	result.Host = c.Host
 	result.Port = c.Port
 	result.Cmd = fmt.Sprintf("%s %s", sshBinaryPath, strings.Join(args, " "))
@@ -331,19 +324,10 @@ func getSSHLogger(log ...*logrus.Entry) *logrus.Entry {
 	return log[0]
 }
 
-func dockerShell(family string) string {
-	switch family {
-	// case conf.Alpine, conf.Debian:
-	// return "/bin/sh"
-	default:
-		// return "/bin/bash"
-		return "/bin/sh"
-	}
-}
-
 func decorateCmd(c conf.ServerInfo, cmd string, sudo bool) string {
 	if sudo && c.User != "root" && !c.IsContainer() {
 		cmd = fmt.Sprintf("sudo -S %s", cmd)
+		cmd = strings.Replace(cmd, "|", "| sudo ", -1)
 	}
 
 	// If you are using pipe and you want to detect preprocessing errors, remove comment out
@@ -358,19 +342,9 @@ func decorateCmd(c conf.ServerInfo, cmd string, sudo bool) string {
 	if c.IsContainer() {
 		switch c.Containers.Type {
 		case "", "docker":
-			cmd = fmt.Sprintf(`docker exec --user 0 %s %s -c '%s'`,
-				c.Container.ContainerID, dockerShell(c.Distro.Family), cmd)
+			cmd = fmt.Sprintf(`docker exec --user 0 %s /bin/bash -c "%s"`, c.Container.ContainerID, cmd)
 		case "lxd":
-			// If the user belong to the "lxd" group, root privilege is not required.
-			cmd = fmt.Sprintf(`lxc exec %s -- %s -c '%s'`,
-				c.Container.Name, dockerShell(c.Distro.Family), cmd)
-		case "lxc":
-			cmd = fmt.Sprintf(`lxc-attach -n %s 2>/dev/null -- %s -c '%s'`,
-				c.Container.Name, dockerShell(c.Distro.Family), cmd)
-			// LXC required root privilege
-			if c.User != "root" {
-				cmd = fmt.Sprintf("sudo -S %s", cmd)
-			}
+			cmd = fmt.Sprintf(`lxc exec %s -- /bin/bash -c "%s"`, c.Container.Name, cmd)
 		}
 	}
 	//  cmd = fmt.Sprintf("set -x; %s", cmd)

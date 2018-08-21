@@ -16,39 +16,3 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 package models
-
-import "testing"
-
-func TestPackageInfosUniqByName(t *testing.T) {
-	var test = struct {
-		in  PackageInfoList
-		out PackageInfoList
-	}{
-		PackageInfoList{
-			{
-				Name: "hoge",
-			},
-			{
-				Name: "fuga",
-			},
-			{
-				Name: "hoge",
-			},
-		},
-		PackageInfoList{
-			{
-				Name: "hoge",
-			},
-			{
-				Name: "fuga",
-			},
-		},
-	}
-
-	actual := test.in.UniqByName()
-	for i, ePack := range test.out {
-		if actual[i].Name == ePack.Name {
-			t.Errorf("expected %#v, actual %#v", ePack.Name, actual[i].Name)
-		}
-	}
-}

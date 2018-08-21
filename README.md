@@ -5,9 +5,8 @@
 
 Vulnerability scanner for Linux, agentless, written in golang.
 
-We have a slack team. [Join slack team](http://goo.gl/forms/xm5KFo35tu)  
-
-[README in Japanese](https://github.com/future-architect/vuls/blob/master/README.ja.md)  
+[README in Japanese](https://github.com/future-architect/vuls/blob/master/README.ja.md)
+We have a slack team. [Join slack team](http://goo.gl/forms/xm5KFo35tu)
 
 [![asciicast](https://asciinema.org/a/3y9zrf950agiko7klg8abvyck.png)](https://asciinema.org/a/3y9zrf950agiko7klg8abvyck)
 
@@ -24,7 +23,7 @@ To avoid downtime in production environment, it is common for system administrat
 This leads to the following problems.
 - System administrator will have to constantly watch out for any new vulnerabilities in NVD(National Vulnerability Database) and etc.
 - It might be impossible for the system administrator to monitor all the software if there are a large number of software installed in server.
-- It is expensive to perform analysis to determine the servers affected by new vulnerabilities. The possibility of overlooking a server or two during analysis is there.
+- It is expensive to perform anaylsis to determine the servers affected by new vulnerabilities. The possibility of overlooking a server or two during analysis is there.
 
 
 Vuls is a tool created to solve the problems listed above. It has the following characteristics.
@@ -96,7 +95,7 @@ This is required to ssh to itself.
 Create a keypair then append public key to authorized_keys
 ```bash
 $ ssh-keygen -t rsa
-$ cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+$ cat ~/.ssh/id_dsa.pub >> ~/.ssh/authorized_keys
 ```
 
 ## Step3. Install requirements
@@ -194,7 +193,7 @@ $ vuls prepare
 
 ```
 $ vuls scan
-INFO[0000] Begin scanning (config: /home/ec2-user/config.toml)
+INFO[0000] Begin scannig (config: /home/ec2-user/config.toml)
 
 ... snip ...
 
@@ -241,7 +240,7 @@ $ vuls tui
 ![Vuls-Architecture](img/vuls-architecture.png)
 
 ## go-cve-dictinary  
-- Fetch vulnerability information from NVD, JVN(Japanese), then insert into SQLite.
+- Fetch vulnerbility information from NVD, JVN(Japanese), then insert into SQLite.
 
 ## Vuls
 - Scan vulnerabilities on the servers and create a list of the CVE ID
@@ -280,7 +279,7 @@ web/app server in the same configuration under the load balancer
 
 # Usage: Automatic Server Discovery
 
-Discovery subcommand discovers active servers specified in CIDR range, then print the template of config file(TOML format) to terminal.
+Discovery subcommand discovers active servers specifed in CIDR range, then print the template of config file(TOML format) to terminal.
 
 ```
 $ vuls discover -help
@@ -288,7 +287,7 @@ discover:
         discover 192.168.0.0/24
 ```
 
-## Example
+## Exapmle
 
 ```
 $ vuls discover 172.31.4.0/24
@@ -448,7 +447,7 @@ prepare:
   -debug
         debug mode
   -use-unattended-upgrades
-        [Deprecated] For Ubuntu, install unattended-upgrades
+        [Depricated] For Ubuntu, install unattended-upgrades
 ```
 
 ----
@@ -490,9 +489,9 @@ scan:
   -report-slack
         Slack report
   -use-unattended-upgrades
-        [Deprecated] For Ubuntu. Scan by unattended-upgrades or not (use apt-get upgrade --dry-run by default)
+        [Depricated] For Ubuntu. Scan by unattended-upgrades or not (use apt-get upgrade --dry-run by default)
   -use-yum-plugin-security
-        [Deprecated] For CentOS 5. Scan by yum-plugin-security or not (use yum check-update by default)
+        [Depricated] For CentOS 5. Scan by yum-plugin-security or not (use yum check-update by default)
 
 ```
 
@@ -588,7 +587,7 @@ If your system is behind HTTP proxy, you have to specify --http-proxy option.
 - How to Daemonize go-cve-dictionary  
 Use Systemd, Upstart or supervisord, daemontools...
 
-- How to update vulnerability data automatically.
+- How to update vulnerbility data automatically.  
 Use job scheduler like Cron (with -last2y option).
 
 - How to cross compile
@@ -604,7 +603,7 @@ Log wrote to under /var/log/vuls/
 Run with --debug, --sql-debug option.
 
 - Windows  
-Use Microsoft Baseline Security Analyzer. [MBSA](https://technet.microsoft.com/en-us/security/cc184924.aspx)
+Use Microsoft Baseline Secuirty Analyzer. [MBSA](https://technet.microsoft.com/en-us/security/cc184924.aspx)
 
 ----
 

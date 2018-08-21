@@ -24,6 +24,7 @@ import (
 
 	c "github.com/future-architect/vuls/config"
 	"github.com/future-architect/vuls/report"
+	"github.com/future-architect/vuls/util"
 	"github.com/google/subcommands"
 	"golang.org/x/net/context"
 )
@@ -53,6 +54,10 @@ func (*TuiCmd) Usage() string {
 func (p *TuiCmd) SetFlags(f *flag.FlagSet) {
 	//  f.StringVar(&p.lang, "lang", "en", "[en|ja]")
 	f.BoolVar(&p.debugSQL, "debug-sql", false, "debug SQL")
+	f.BoolVar(&p.debug, "debug", false, "debug mode")
+
+	defaultLogDir := util.GetDefaultLogDir()
+	f.StringVar(&p.logDir, "log-dir", defaultLogDir, "/path/to/log")
 
 	defaultDBPath := os.Getenv("PWD") + "/vuls.sqlite3"
 	f.StringVar(&p.dbpath, "dbpath", defaultDBPath,
@@ -62,6 +67,9 @@ func (p *TuiCmd) SetFlags(f *flag.FlagSet) {
 // Execute execute
 func (p *TuiCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	c.Conf.Lang = "en"
+
+	// Setup Logger
+	c.Conf.Debug = p.debug
 	c.Conf.DebugSQL = p.debugSQL
 	c.Conf.DBPath = p.dbpath
 	return report.RunTui()

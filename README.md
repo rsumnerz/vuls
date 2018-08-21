@@ -472,6 +472,7 @@ scan:
                 [-lang=en|ja]
                 [-config=/path/to/config.toml]
                 [-dbpath=/path/to/vuls.sqlite3]
+                [--cve-dictionary-dbpath=/path/to/cve.sqlite3]
                 [-cve-dictionary-url=http://127.0.0.1:1323]
                 [-cvss-over=7]
                 [-report-slack]
@@ -482,6 +483,8 @@ scan:
                 [-debug-sql]
   -config string
         /path/to/toml (default "$PWD/config.toml")
+  --cve-dictionary-dbpath string
+        /path/to/sqlite3 (For get cve detail from cve.sqlite3)        
   -cve-dictionary-url string
         http://CVE.Dictionary (default "http://127.0.0.1:1323")
   -cvss-over float
@@ -511,11 +514,6 @@ scan:
 
 ## example
 
-Run go-cve-dictionary as server mode before scanning.
-```
-$ go-cve-dictionary server
-```
-
 ### Scan all servers defined in config file
 ```
 $ vuls scan --report-slack --report-mail --cvss-over=7
@@ -528,7 +526,7 @@ With this sample command, it will ..
 
 ### Scan specific servers
 ```
-$ vuls scan server1 server2
+$ vuls scan -cve-dictionary-dbpath=$PWD/cve.sqlite3 server1 server2
 ```
 With this sample command, it will ..
 - Scan only 2 servers. (server1, server2)

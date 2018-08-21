@@ -646,7 +646,7 @@ func (o *redhat) parseYumUpdateinfo(stdout string) (result []distroAdvisoryCveID
 				// So use yum check-update && parse changelog
 				return result, fmt.Errorf(
 					"yum updateinfo is not suppported on  CentOS")
-			case "rhel", "amazon":
+			case "rhel", "amazon", "oraclelinux":
 				// nop
 			}
 
@@ -817,7 +817,7 @@ func (o *redhat) extractPackNameVerRel(nameVerRel string) (name, ver, rel string
 	return
 }
 
-// parseYumUpdateinfoListAvailable collect AdvisorID(RHSA, ALAS), packages
+// parseYumUpdateinfoListAvailable collect AdvisorID(RHSA, ALAS, ELSA), packages
 func (o *redhat) parseYumUpdateinfoListAvailable(stdout string) (advisoryIDPacksList, error) {
 
 	result := []advisoryIDPacks{}
@@ -825,7 +825,8 @@ func (o *redhat) parseYumUpdateinfoListAvailable(stdout string) (advisoryIDPacks
 	for _, line := range lines {
 
 		if !(strings.HasPrefix(line, "RHSA") ||
-			strings.HasPrefix(line, "ALAS")) {
+			strings.HasPrefix(line, "ALAS") ||
+			strings.HasPrefix(line, "ELSA")) {
 			continue
 		}
 

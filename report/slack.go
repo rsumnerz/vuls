@@ -171,32 +171,31 @@ func color(cvssScore float64) string {
 }
 
 func attachmentText(cveInfo models.CveInfo, osFamily string) string {
-
 	linkText := links(cveInfo, osFamily)
-
 	switch {
 	case config.Conf.Lang == "ja" &&
 		0 < cveInfo.CveDetail.Jvn.CvssScore():
 
 		jvn := cveInfo.CveDetail.Jvn
-		return fmt.Sprintf("*%4.1f (%s)* <%s|%s>\n%s\n%s",
+		return fmt.Sprintf("*%4.1f (%s)* <%s|%s>\n%s\n%s\n*Confidence:* %v",
 			cveInfo.CveDetail.CvssScore(config.Conf.Lang),
 			jvn.Severity,
 			fmt.Sprintf(cvssV2CalcURLTemplate, cveInfo.CveDetail.CveID, jvn.Vector),
 			jvn.Vector,
 			jvn.Title,
 			linkText,
+			cveInfo.VulnInfo.Confidence,
 		)
-
 	case 0 < cveInfo.CveDetail.CvssScore("en"):
 		nvd := cveInfo.CveDetail.Nvd
-		return fmt.Sprintf("*%4.1f (%s)* <%s|%s>\n%s\n%s",
+		return fmt.Sprintf("*%4.1f (%s)* <%s|%s>\n%s\n%s\n*Confidence:* %v",
 			cveInfo.CveDetail.CvssScore(config.Conf.Lang),
 			nvd.Severity(),
 			fmt.Sprintf(cvssV2CalcURLTemplate, cveInfo.CveDetail.CveID, nvd.CvssVector()),
 			nvd.CvssVector(),
 			nvd.Summary,
 			linkText,
+			cveInfo.VulnInfo.Confidence,
 		)
 	default:
 		nvd := cveInfo.CveDetail.Nvd

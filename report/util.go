@@ -236,6 +236,7 @@ func toPlainTextDetailsLangJa(cveInfo models.CveInfo, osFamily string) string {
 
 	dtable = addPackageInfos(dtable, cveInfo.Packages)
 	dtable = addCpeNames(dtable, cveInfo.CpeNames)
+	dtable.AddRow("Confidence", cveInfo.VulnInfo.Confidence)
 
 	return fmt.Sprintf("%s", dtable)
 }
@@ -275,6 +276,7 @@ func toPlainTextDetailsLangEn(d models.CveInfo, osFamily string) string {
 	}
 	dtable = addPackageInfos(dtable, d.Packages)
 	dtable = addCpeNames(dtable, d.CpeNames)
+	dtable.AddRow("Confidence", d.VulnInfo.Confidence)
 
 	return fmt.Sprintf("%s\n", dtable)
 }

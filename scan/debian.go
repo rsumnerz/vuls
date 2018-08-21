@@ -600,10 +600,21 @@ func (o *debian) getCveIDParsingChangelog(changelog string,
 	return []string{}, nil
 }
 
+// DetectedCveID has CveID, Confidence and DetectionMethod fields
+// LenientMatching will be true if this vulnerability is not detected by accurate version matching.
+// see https://github.com/future-architect/vuls/pull/328
+type DetectedCveID struct {
+	CveID      string
+	Confidence models.Confidence
+}
+
+// DetectedCveIDs is a slice of DetectedCveID
+type DetectedCveIDs []DetectedCveID
+
 // Collect CVE-IDs included in the changelog.
 // The version which specified in argument(versionOrLater) is excluded.
 func (o *debian) parseChangelog(changelog string,
-	packName string, versionOrLater string) (cveIDs []string, err error) {
+	packName string, versionOrLater string) (cves []DetectedCveID, err error) {
 
 	cveRe, _ := regexp.Compile(`(CVE-\d{4}-\d{4})`)
 	stopRe, _ := regexp.Compile(fmt.Sprintf(`\(%s\)`, regexp.QuoteMeta(versionOrLater)))
@@ -626,6 +637,14 @@ func (o *debian) parseChangelog(changelog string,
 			packName,
 			versionOrLater,
 		)
+	}
+
+	for _, id := range cveIDs {
+		confidence := models.ChangelogExactMatch
+		if lenientStopLineFound {
+			confidence = models.ChangelogLenientMatch
+		}
+		cves = append(cves, DetectedCveID{id, confidence})
 	}
 	return
 }

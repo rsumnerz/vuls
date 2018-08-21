@@ -580,7 +580,7 @@ func summaryLines(data models.ScanResult) string {
 
 			var cvssScore string
 			if d.CveDetail.CvssScore("en") <= 0 {
-				cvssScore = "| ?"
+				cvssScore = "|   ?"
 			} else {
 				cvssScore = fmt.Sprintf("| %-4.1f(%s)",
 					d.CveDetail.CvssScore(config.Conf.Lang),
@@ -592,6 +592,7 @@ func summaryLines(data models.ScanResult) string {
 				fmt.Sprintf(indexFormat, i+1),
 				d.CveDetail.CveID,
 				cvssScore,
+				fmt.Sprintf("| %3d |", d.VulnInfo.Confidence.Score),
 				summary,
 			}
 		}

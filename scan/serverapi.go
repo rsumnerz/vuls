@@ -91,7 +91,8 @@ func (s CvePacksList) Swap(i, j int) {
 
 // Less implement Sort Interface
 func (s CvePacksList) Less(i, j int) bool {
-	return s[i].CveDetail.CvssScore("en") > s[j].CveDetail.CvssScore("en")
+	return s[i].CveDetail.CvssScore(config.Conf.Lang) >
+		s[j].CveDetail.CvssScore(config.Conf.Lang)
 }
 
 func detectOs(c config.ServerInfo) (osType osTypeInterface) {

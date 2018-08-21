@@ -19,6 +19,7 @@ package commands
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"github.com/Sirupsen/logrus"
@@ -70,6 +71,7 @@ func (*ScanCmd) Usage() string {
 		[-cvss-over=7]
 		[-report-slack]
 		[-report-mail]
+		[-report-slack]
 		[-http-proxy=http://192.168.0.1:8080]
 		[-debug]
 		[-debug-sql]
@@ -108,8 +110,13 @@ func (p *ScanCmd) SetFlags(f *flag.FlagSet) {
 		"http://proxy-url:port (default: empty)",
 	)
 
-	f.BoolVar(&p.reportSlack, "report-slack", false, "Slack report")
-	f.BoolVar(&p.reportMail, "report-mail", false, "Email report")
+	f.BoolVar(&p.reportSlack, "report-slack", false, "Send report via Slack")
+	f.BoolVar(&p.reportMail, "report-mail", false, "Send report via Email")
+	f.BoolVar(&p.reportJSON,
+		"report-json",
+		false,
+		fmt.Sprintf("Write report to JSON files (%s/results/current)", wd),
+	)
 
 	f.BoolVar(
 		&p.useYumPluginSecurity,
@@ -174,6 +181,9 @@ func (p *ScanCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 	if p.reportMail {
 		reports = append(reports, report.MailWriter{})
 	}
+	if p.reportJSON {
+		reports = append(reports, report.JSONWriter{})
+	}
 
 	c.Conf.DBPath = p.dbpath
 	c.Conf.CveDictionaryURL = p.cveDictionaryURL
@@ -213,15 +223,6 @@ func (p *ScanCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 		return subcommands.ExitFailure
 	}
 
-	Log.Info("Reporting...")
-	filtered := scanResults.FilterByCvssOver()
-	for _, w := range reports {
-		if err := w.Write(filtered); err != nil {
-			Log.Fatalf("Failed to output report, err: %s", err)
-			return subcommands.ExitFailure
-		}
-	}
-
 	Log.Info("Insert to DB...")
 	if err := db.OpenDB(); err != nil {
 		Log.Errorf("Failed to open DB. datafile: %s, err: %s", c.Conf.DBPath, err)
@@ -235,6 +236,15 @@ func (p *ScanCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 	if err := db.Insert(scanResults); err != nil {
 		Log.Fatalf("Failed to insert. dbpath: %s, err: %s", c.Conf.DBPath, err)
 		return subcommands.ExitFailure
+	}
+
+	Log.Info("Reporting...")
+	filtered := scanResults.FilterByCvssOver()
+	for _, w := range reports {
+		if err := w.Write(filtered); err != nil {
+			Log.Fatalf("Failed to report, err: %s", err)
+			return subcommands.ExitFailure
+		}
 	}
 
 	return subcommands.ExitSuccess

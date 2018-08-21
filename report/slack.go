@@ -176,8 +176,7 @@ func attachmentText(cveInfo models.CveInfo, osFamily string) string {
 
 	switch {
 	case config.Conf.Lang == "ja" &&
-		cveInfo.CveDetail.Jvn.ID != 0 &&
-		0 < cveInfo.CveDetail.CvssScore("ja"):
+		0 < cveInfo.CveDetail.Jvn.CvssScore():
 
 		jvn := cveInfo.CveDetail.Jvn
 		return fmt.Sprintf("*%4.1f (%s)* <%s|%s>\n%s\n%s",

@@ -465,6 +465,7 @@ scan:
                 [-cvss-over=7]
                 [-report-slack]
                 [-report-mail]
+                [-report-slack]
                 [-http-proxy=http://192.168.0.1:8080]
                 [-debug]
                 [-debug-sql]
@@ -484,10 +485,12 @@ scan:
         http://proxy-url:port (default: empty)
   -lang string
         [en|ja] (default "en")
+  -report-json
+        Write report to JSON files ($PWD/results/current)
   -report-mail
-        Email report
+        Send report via Email
   -report-slack
-        Slack report
+        Send report via Slack
   -use-unattended-upgrades
         [Depricated] For Ubuntu. Scan by unattended-upgrades or not (use apt-get upgrade --dry-run by default)
   -use-yum-plugin-security
@@ -519,6 +522,8 @@ $ vuls scan server1 server2
 With this sample command, it will ..
 - Scan only 2 servers. (server1, server2)
 - Print scan result to terminal
+
+
 
 ----
 

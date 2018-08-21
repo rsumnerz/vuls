@@ -394,7 +394,6 @@ func (o *redhat) scanUnsecurePackagesUsingYumCheckUpdate() (CvePacksList, error)
 			//  CvssScore: cinfo.CvssScore(conf.Lang),
 		})
 	}
-	sort.Sort(CvePacksList(cvePacksList))
 	return cvePacksList, nil
 }
 

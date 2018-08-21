@@ -276,6 +276,7 @@ func (o *redhat) scanInstalledPackages() (installedPackages models.PackageInfoLi
 				}
 				installedPackages = append(installedPackages, packinfo)
 			}
+			installed[pack.Name] = pack
 		}
 		return
 	}

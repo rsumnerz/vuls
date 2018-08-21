@@ -139,6 +139,9 @@ func sshExec(c conf.ServerInfo, cmd string, sudo bool, log ...*logrus.Entry) (re
 	cmd = fmt.Sprintf("set -o pipefail; %s", cmd)
 	logger.Debugf("Command: %s", strings.Replace(cmd, "\n", "", -1))
 
+	logger.Debugf("Command: %s",
+		strings.Replace(maskPassword(cmd, c.Password), "\n", "", -1))
+
 	var client *ssh.Client
 	client, err = sshConnect(c)
 	defer client.Close()

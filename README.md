@@ -248,6 +248,9 @@ $ vuls tui
 - Send a report by Slack, Email
 - System operator can view the latest report by terminal
 
+- On SUSE Enterprise Linux
+Same as fast scan mode for now.
+
 ----
 
 # Use Cases

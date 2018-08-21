@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Sirupsen/logrus"
 	c "github.com/future-architect/vuls/config"
 	"github.com/future-architect/vuls/cveapi"
 	"github.com/future-architect/vuls/report"
@@ -139,7 +138,7 @@ func (p *ScanCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 	logrus.Infof("Begin scannig (config: %s)", p.configPath)
 	err := c.Load(p.configPath)
 	if err != nil {
-		logrus.Errorf("Error loading %s, %s", p.configPath, err)
+		util.Log.Errorf("Error loading %s, %s", p.configPath, err)
 		return subcommands.ExitUsageError
 	}
 
@@ -154,7 +153,7 @@ func (p *ScanCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 			}
 		}
 		if !found {
-			logrus.Errorf("%s is not in config", arg)
+			util.Log.Errorf("%s is not in config", arg)
 			return subcommands.ExitUsageError
 		}
 	}

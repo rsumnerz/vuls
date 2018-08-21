@@ -11,10 +11,7 @@ import (
 	cve "github.com/kotakanbe/go-cve-dictionary/models"
 )
 
-// Log for localhsot
-var Log *logrus.Entry
-
-var servers []osTypeInterface
+var servers, errServers []osTypeInterface
 
 // Base Interface of redhat, debian
 type osTypeInterface interface {
@@ -149,16 +146,13 @@ func Prepare() []error {
 }
 
 // Scan scan
-func Scan() []error {
+func Scan() error {
 	if len(servers) == 0 {
 		return []error{fmt.Errorf("Not initialize yet.")}
 	}
 
-	Log.Info("Check required packages for scanning...")
-	if errs := checkRequiredPackagesInstalled(); errs != nil {
-		Log.Error("Please execute with [prepare] subcommand to install required packages before scanning")
-		return errs
-	}
+	util.Log.Info("Check required packages for scanning...")
+	checkRequiredPackagesInstalled()
 
 	Log.Info("Scanning vuluneable OS packages...")
 	if errs := scanPackages(); errs != nil {
@@ -174,9 +168,10 @@ func Scan() []error {
 
 func checkRequiredPackagesInstalled() []error {
 	timeoutSec := 30 * 60
-	return parallelSSHExec(func(o osTypeInterface) error {
+	parallelExec(func(o osTypeInterface) error {
 		return o.checkRequiredPackagesInstalled()
 	}, timeoutSec)
+	return nil
 }
 
 func scanPackages() []error {

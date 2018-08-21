@@ -139,24 +139,23 @@ func (l *base) parseDockerPs(stdout string) (containers []config.Container, err 
 	return
 }
 
-func (l *base) detectPlatform() error {
+func (l *base) detectPlatform() {
 	ok, instanceID, err := l.detectRunningOnAws()
 	if err != nil {
-		return err
+		l.setPlatform(models.Platform{Name: "other"})
+		return
 	}
 	if ok {
 		l.setPlatform(models.Platform{
 			Name:       "aws",
 			InstanceID: instanceID,
 		})
-		return nil
+		return
 	}
 
 	//TODO Azure, GCP...
-	l.setPlatform(models.Platform{
-		Name: "other",
-	})
-	return nil
+	l.setPlatform(models.Platform{Name: "other"})
+	return
 }
 
 func (l base) detectRunningOnAws() (ok bool, instanceID string, err error) {
@@ -248,7 +247,8 @@ func (l *base) convertToModel() (models.ScanResult, error) {
 		KnownCves:   scoredCves,
 		UnknownCves: unscoredCves,
 		Optional:    l.ServerInfo.Optional,
-	}, nil
+		Errors:      errs,
+	}
 }
 
 // scanVulnByCpeName search vulnerabilities that specified in config file.

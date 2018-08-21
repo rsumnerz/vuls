@@ -548,6 +548,10 @@ func summaryLines(data models.ScanResult) string {
 	stable.MaxColWidth = 1000
 	stable.Wrap = false
 
+	if len(currentScanResult.Errors) != 0 {
+		return "Error: Scan with --debug to view the details"
+	}
+
 	indexFormat := ""
 	if len(data.KnownCves) < 10 {
 		indexFormat = "[%1d]"
@@ -727,8 +731,6 @@ func detailLines() (string, error) {
 
 	return string(buf.Bytes()), nil
 }
-
-//  * {{.Name}}-{{.Version}}-{{.Release}}
 
 func detailTemplate() string {
 	return `

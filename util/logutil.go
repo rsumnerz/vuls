@@ -28,6 +28,9 @@ import (
 	formatter "github.com/kotakanbe/logrus-prefixed-formatter"
 )
 
+// Log for localhsot
+var Log *logrus.Entry
+
 // NewCustomLogger creates logrus
 func NewCustomLogger(c config.ServerInfo) *logrus.Entry {
 	log := logrus.New()

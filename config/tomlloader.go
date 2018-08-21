@@ -66,7 +66,7 @@ func (c TOMLLoader) Load(pathToToml string) (err error) {
 		}
 
 		s.KeyPath = v.KeyPath
-		if s.KeyPath == "" {
+		if len(s.KeyPath) == 0 {
 			s.KeyPath = d.KeyPath
 		}
 		if s.KeyPath != "" {
@@ -77,7 +77,7 @@ func (c TOMLLoader) Load(pathToToml string) (err error) {
 		}
 
 		s.KeyPassword = v.KeyPassword
-		if s.KeyPassword == "" {
+		if len(s.KeyPassword) == 0 {
 			s.KeyPassword = d.KeyPassword
 		}
 

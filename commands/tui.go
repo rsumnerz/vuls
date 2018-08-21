@@ -30,9 +30,9 @@ import (
 
 // TuiCmd is Subcommand of host discovery mode
 type TuiCmd struct {
-	lang     string
-	debugSQL bool
-	dbpath   string
+	lang        string
+	debugSQL    bool
+	jsonBaseDir string
 }
 
 // Name return subcommand name
@@ -44,7 +44,7 @@ func (*TuiCmd) Synopsis() string { return "Run Tui view to anayze vulnerabilites
 // Usage return usage
 func (*TuiCmd) Usage() string {
 	return `tui:
-	tui [-dbpath=/path/to/vuls.sqlite3]
+	tui [-results-dir=/path/to/results]
 
 `
 }

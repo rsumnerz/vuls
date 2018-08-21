@@ -167,7 +167,7 @@ func (api cvedictClient) httpGet(key, url string, resChan chan<- response, errCh
 //          }
 //          pp.Println(req)
 //          resp, body, errs = req.End()
-//          if len(errs) > 0 || resp.StatusCode != 200 {
+//          if 0 < len(errs) || resp.StatusCode != 200 {
 //              errChan <- fmt.Errorf("HTTP error. errs: %v, url: %s", errs, url)
 //          }
 //          return nil

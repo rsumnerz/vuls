@@ -475,8 +475,8 @@ scan:
         http://CVE.Dictionary (default "http://127.0.0.1:1323")
   -cvss-over float
         -cvss-over=6.5 means reporting CVSS Score 6.5 and over (default: 0 (means report all))
-  -dbpath string
-        /path/to/sqlite3 (default "$PWD/vuls.sqlite3")
+  -results-dir string
+        /path/to/results (default "$PWD/results")
   -debug
         debug mode
   -debug-sql

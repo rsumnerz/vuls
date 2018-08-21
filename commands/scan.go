@@ -25,7 +25,6 @@ import (
 	"github.com/Sirupsen/logrus"
 	c "github.com/future-architect/vuls/config"
 	"github.com/future-architect/vuls/cveapi"
-	"github.com/future-architect/vuls/db"
 	"github.com/future-architect/vuls/report"
 	"github.com/future-architect/vuls/scan"
 	"github.com/future-architect/vuls/util"
@@ -169,6 +168,7 @@ func (p *ScanCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 
 	// logger
 	Log := util.NewCustomLogger(c.ServerInfo{})
+	scannedAt := time.Now()
 
 	// report
 	reports := []report.ResultWriter{
@@ -182,7 +182,7 @@ func (p *ScanCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 		reports = append(reports, report.MailWriter{})
 	}
 	if p.reportJSON {
-		reports = append(reports, report.JSONWriter{})
+		reports = append(reports, report.JSONWriter{ScannedAt: scannedAt})
 	}
 
 	c.Conf.DBPath = p.dbpath
@@ -220,21 +220,6 @@ func (p *ScanCmd) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 	scanResults, err := scan.GetScanResults()
 	if err != nil {
 		Log.Fatal(err)
-		return subcommands.ExitFailure
-	}
-
-	Log.Info("Insert to DB...")
-	if err := db.OpenDB(); err != nil {
-		Log.Errorf("Failed to open DB. datafile: %s, err: %s", c.Conf.DBPath, err)
-		return subcommands.ExitFailure
-	}
-	if err := db.MigrateDB(); err != nil {
-		Log.Errorf("Failed to migrate. err: %s", err)
-		return subcommands.ExitFailure
-	}
-
-	if err := db.Insert(scanResults); err != nil {
-		Log.Fatalf("Failed to insert. dbpath: %s, err: %s", c.Conf.DBPath, err)
 		return subcommands.ExitFailure
 	}
 

@@ -88,6 +88,11 @@ const (
 	ServerTypePseudo = "pseudo"
 )
 
+const (
+	// ServerTypePseudo is used for ServerInfo.Type
+	ServerTypePseudo = "pseudo"
+)
+
 //Config is struct of Configuration
 type Config struct {
 	Debug    bool

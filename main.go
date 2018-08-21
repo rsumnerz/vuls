@@ -25,8 +25,6 @@ import (
 
 	"github.com/future-architect/vuls/commands"
 	"github.com/google/subcommands"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {

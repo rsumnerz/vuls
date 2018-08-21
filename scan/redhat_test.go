@@ -687,6 +687,7 @@ bash.x86_64                    4.1.2-33.el6_7.1              updates
 					Release:    "4.el6",
 					NewVersion: "2.3.7",
 					NewRelease: "5.el6",
+					Repository: "base",
 				},
 				{
 					Name:       "bash",
@@ -694,6 +695,7 @@ bash.x86_64                    4.1.2-33.el6_7.1              updates
 					Release:    "33",
 					NewVersion: "4.1.2",
 					NewRelease: "33.el6_7.1",
+					Repository: "updates",
 				},
 			},
 		},
@@ -755,6 +757,7 @@ if-not-architecture        100-200                         amzn-main
 					Release:    "0.33.rc1.45.amzn1",
 					NewVersion: "32:9.8.2",
 					NewRelease: "0.37.rc1.45.amzn1",
+					Repository: "amzn-main",
 				},
 				{
 					Name:       "java-1.7.0-openjdk",
@@ -762,6 +765,7 @@ if-not-architecture        100-200                         amzn-main
 					Release:    "2.6.4.0.0.amzn1",
 					NewVersion: "1:1.7.0.95",
 					NewRelease: "2.6.4.0.65.amzn1",
+					Repository: "amzn-main",
 				},
 				{
 					Name:       "if-not-architecture",
@@ -769,6 +773,7 @@ if-not-architecture        100-200                         amzn-main
 					Release:    "20",
 					NewVersion: "100",
 					NewRelease: "200",
+					Repository: "amzn-main",
 				},
 			},
 		},

@@ -201,11 +201,9 @@ func (o *redhat) checkRequiredPackagesInstalled() error {
 			return fmt.Errorf(msg)
 		}
 
-		var packName = ""
+		var packName = "yum-plugin-changelog"
 		if majorVersion < 6 {
 			packName = "yum-changelog"
-		} else {
-			packName = "yum-plugin-changelog"
 		}
 
 		cmd := "rpm -q " + packName
@@ -449,6 +447,7 @@ func (o *redhat) parseYumCheckUpdateLines(stdout string) (results models.Package
 			}
 			installed.NewVersion = candidate.NewVersion
 			installed.NewRelease = candidate.NewRelease
+			installed.Repository = candidate.Repository
 			results = append(results, installed)
 		}
 	}
@@ -468,8 +467,8 @@ func (o *redhat) parseYumCheckUpdateLine(line string) (models.PackageInfo, error
 		packName = strings.Join(strings.Split(fields[0], ".")[0:(len(splitted)-1)], ".")
 	}
 
-	fields = strings.Split(fields[1], "-")
-	if len(fields) != 2 {
+	verfields := strings.Split(fields[1], "-")
+	if len(verfields) != 2 {
 		return models.PackageInfo{}, fmt.Errorf("Unknown format: %s", line)
 	}
 	version := fields[0]
@@ -478,6 +477,7 @@ func (o *redhat) parseYumCheckUpdateLine(line string) (models.PackageInfo, error
 		Name:       packName,
 		NewVersion: version,
 		NewRelease: release,
+		Repository: repos,
 	}, nil
 }
 

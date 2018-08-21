@@ -20,6 +20,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	log "github.com/Sirupsen/logrus"

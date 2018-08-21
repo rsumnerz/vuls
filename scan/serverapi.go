@@ -201,7 +201,7 @@ func GetScanResults() (results models.ScanResults, err error) {
 	for _, s := range servers {
 		r, err := s.convertToModel()
 		if err != nil {
-			return results, fmt.Errorf("Failed converting to model: %s.", err)
+			return results, fmt.Errorf("Failed converting to model: %s", err)
 		}
 		results = append(results, r)
 	}

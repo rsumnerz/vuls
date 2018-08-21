@@ -362,7 +362,7 @@ func (o *debian) fillCandidateVersion(packs []models.PackageInfo) ([]models.Pack
 		case err := <-errChan:
 			return nil, err
 		case <-timeout:
-			return nil, fmt.Errorf("Timeout fillCandidateVersion.")
+			return nil, fmt.Errorf("Timeout fillCandidateVersion")
 		}
 	}
 	return result, nil
@@ -516,7 +516,7 @@ func (o *debian) scanPackageCveInfos(unsecurePacks []models.PackageInfo) (cvePac
 				return nil, err
 			}
 		case <-timeout:
-			return nil, fmt.Errorf("Timeout scanPackageCveIds.")
+			return nil, fmt.Errorf("Timeout scanPackageCveIds")
 		}
 	}
 

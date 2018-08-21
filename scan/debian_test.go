@@ -208,7 +208,7 @@ util-linux (2.26.2-6) unstable; urgency=medium`,
 	for _, tt := range tests {
 		_, err := d.getCveIDParsingChangelog(tt.in[2], tt.in[0], "version number do'nt match case")
 		if err != nil {
-			t.Errorf("Returning error is unexpected.")
+			t.Errorf("Returning error is unexpected")
 		}
 	}
 }
@@ -513,7 +513,7 @@ Calculating upgrade... Done
 	for _, tt := range tests {
 		actual, err := d.parseAptGetUpgrade(tt.in)
 		if err != nil {
-			t.Errorf("Returning error is unexpected.")
+			t.Errorf("Returning error is unexpected")
 		}
 		if len(tt.expected) != len(actual) {
 			t.Errorf("Result length is not as same as expected. expected: %d, actual: %d", len(tt.expected), len(actual))

@@ -137,7 +137,7 @@ $ vuls scan server1 server2
 
 ローカルホストのスキャンする場合、SSHではなく直接コマンドの発行が可能。  
 config.tomlのhostに`localhost または 127.0.0.1`かつ、portに`local`を設定する必要がある。  
-For more details, see [Architecture section](https://github.com/future-architect/vuls#architecture)
+For more details, see [Architecture section](#architecture)
 
 - config.toml
   ```

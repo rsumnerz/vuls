@@ -434,7 +434,11 @@ In order to scan, the following dependencies are required, so you need to instal
 
 ## Check /etc/sudoers 
 
-The configtest subcommand checks sudo settings on target servers whether Vuls is able to SUDO with nopassword via SSH.  
+The configtest subcommand checks sudo settings on target servers whether Vuls is able to SUDO with nopassword via SSH. And if you run Vuls without -ssh-native-insecure option, requiretty must be defined in /etc/sudoers.
+```
+Defaults:vuls !requiretty
+```
+For details, see [-ssh-native-insecure option](#-ssh-native-insecure-option)
 
 Example of /etc/sudoers on target servers
 
